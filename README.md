@@ -17,7 +17,7 @@ Requires the following fflags to be enabled:
 
 1. Add typeforge to your wally dependencies.
 ```
-Typeforge = "cameronpcampbell/typeforge@0.0.0"
+Typeforge = "cameronpcampbell/typeforge@0.1.0"
 ```
 
 2. Install wally dependencies.
@@ -25,9 +25,9 @@ Typeforge = "cameronpcampbell/typeforge@0.0.0"
 wally install
 ```
 
-3. Import typeforge into your project (replace `@0.0.0` with the version number you installed).
+3. Import typeforge into your project (replace `@0.1.0` with the version number you installed).
 ```luau
-local Typeforge = require(Packages._Index["cameronpcampbell_typeforge@0.0.0"]["typeforge"])
+local T = require(Packages._Index["cameronpcampbell_typeforge@0.1.0"]["typeforge"])
 ```
 
 </details>
