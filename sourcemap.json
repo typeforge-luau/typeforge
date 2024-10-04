@@ -1,0 +1,1 @@
+{"name":"typeforge","className":"ModuleScript","filePaths":["src/init.luau","default.project.json"],"children":[{"name":"LICENSE","className":"ModuleScript","filePaths":["src/LICENSE.luau"]}]}

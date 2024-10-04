@@ -1,0 +1,10 @@
+[package]
+name = "cameronpcampbell/typeforge"
+description="20+ utility user-defined type functions for luau."
+version = "0.0.0"
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+license = "MIT"
+authors=[ "Cameron Campbell" ]
+exclude=[ "**" ]
+include=[ "src", "src/**", "default.project.json", "wally.toml", "wally.lock", "default.project.json", "LICENSE.md", "README.md" ]
