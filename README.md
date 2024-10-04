@@ -351,11 +351,11 @@ Outputs a copy of the input union but only with specified components.
 
 ```luau
 type TypeResult = UnionPick<
-    "hello" | string | "world",
+    "hello" | string | "world" | string | "world",
     "world"
 >
 
--- type TypeResult = string
+-- type TypeResult = "world"
 ```
 
 
