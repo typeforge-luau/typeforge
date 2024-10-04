@@ -2,7 +2,6 @@
 
 
 --[[
-
 MIT License
 
 Copyright (c) 2024 Cameron Campbell
