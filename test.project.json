@@ -1,0 +1,10 @@
+{
+  "name": "typeforge",
+
+  "tree": {
+    "$className": "ServerService",
+
+    "Typeforge": { "$path": "default.project.json" },
+    "Tests": { "$path": "tests" }
+  }
+}

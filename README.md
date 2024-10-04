@@ -85,18 +85,18 @@ type TypeResult = Or<true | false>
 
 
 <details>
-<summary>Dictionary Types</summary>
+<summary>Table Types</summary>
 
-## DictionaryPick
-Outputs an dictionary with specific properties from an existing dictionary.
+## TablePick
+Outputs an table with specific properties from an existing table.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| dict | { [any]: any } | The dictionary to pick properties from. |
+| table | { [any]: any } | The table to pick properties from. |
 | toPick | any | A union/singeleton of keys to be picked. |
 
 ```luau
-type TypeResult = DictionaryPick<{
+type TypeResult = TablePick<{
     name: string,
     age: number,
     [string | number]: "fooBar"
@@ -111,16 +111,16 @@ type TypeResult = {
 ```
 
 
-## DictionaryOmit
-Outputs a copy of the input dictionary but with specified properties omitted.
+## TableOmit
+Outputs a copy of the input table but with specified properties omitted.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| dict | { [any]: any } | The dictionary to omit properties from. |
+| table | { [any]: any } | The table to omit properties from. |
 | toPick | any | A union/singeleton of keys to be omitted. |
 
 ```luau
-type TypeResult = DictionaryOmit<{
+type TypeResult = TableOmit<{
     name: string,
     age: number
 }, "age">
@@ -134,11 +134,11 @@ type TypeResult = {
 
 
 ## Partial
-Makes all of the properties of a dictionary optional.
+Makes all of the properties of a table optional.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| dict | { [any]: any } | The dictionary to make partial. |
+| table | { [any]: any } | The table to make partial. |
 
 ```luau
 type TypeResult = Partial<{ hello: "world", foo: "bar" }>
@@ -153,11 +153,11 @@ type TypeResult = {
 
 
 ## ReadOnly
-Makes all of the properties of a dictionary read only.
+Makes all of the properties of a table read only.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| dict | { [any]: any } | The dictionary to make read only. |
+| table | { [any]: any } | The table to make read only. |
 
 ```luau
 type TypeResult = ReadOnly<{ hello: "world", foo: "bar" }>
@@ -172,11 +172,11 @@ type TypeResult = {
 
 
 ## ReadWrite
-Makes all of the properties of a dictionary readable and writable (mutable).
+Makes all of the properties of a table readable and writable (mutable).
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| dict | { [any]: any } | The dictionary to make mutable. |
+| table | { [any]: any } | The table to make mutable. |
 
 ```luau
 type TypeResult = ReadWrite<{ read hello: "world", read foo: "bar" }>
@@ -190,16 +190,16 @@ type TypeResult = {
 ```
 
 
-## DictionaryFlatten
-Useful for combining an intersection of dictionaries into one dictionary. All non-dictionary elements of the intersection will be omitted from the output type.
+## TableFlatten
+Useful for combining an intersection of tableionaries into one table. All non-table elements of the intersection will be omitted from the output type.
 NOTE: This type function is not recursive.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| dict | { [any]: any } | The dictionary to flatten. |
+| table | { [any]: any } | The table to flatten. |
 
 ```luau
-type TypeResult = DictionaryFlatten<{ hello: "world" } & { foo: "bar" }>
+type TypeResult = TableFlatten<{ hello: "world" } & { foo: "bar" }>
 
 --[[
 type TypeResult = {
@@ -211,11 +211,11 @@ type TypeResult = {
 
 
 ## ValueOf
-Outputs all values of a dictionary as a union/singleton.
+Outputs all values of a table as a union/singleton.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| dict | { [any]: any } | The dictionary to get values of. |
+| table | { [any]: any } | The table to get values of. |
 
 ```luau
 type TypeResult = ValueOf<{ hello: "world", foo: "bar" }>
@@ -223,16 +223,16 @@ type TypeResult = ValueOf<{ hello: "world", foo: "bar" }>
 ```
 
 
-## DictionaryToCamel
-Converts all keys in a dictionary to be camel case (camelCase).
+## TableToCamel
+Converts all string literal keys in a table to be camel case (camelCase).
 NOTE: This type function is not recursive.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| dict | { [any]: any } | The dictionary to convert to camel case. |
+| table | { [any]: any } | The table to convert to camel case. |
 
 ```luau
-type TypeResult = DictionaryToCamel<{ Name: string, Age: number }>
+type TypeResult = TableToCamel<{ Name: string, Age: number }>
 
 --[[
 type TypeResult = {
@@ -243,16 +243,16 @@ type TypeResult = {
 ```
 
 
-## DictionaryToPascal
-Converts all keys in a dictionary to be pascal case (PascalCase).
+## TableToPascal
+Converts all string literal keys in a table to be pascal case (PascalCase).
 NOTE: This type function is not recursive.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| dict | { [any]: any } | The dictionary to convert to pascal case. |
+| table | { [any]: any } | The table to convert to pascal case. |
 
 ```luau
-type TypeResult = DictionaryToPascal<{ name: string, age: number }>
+type TypeResult = TableToPascal<{ name: string, age: number }>
 
 --[[
 type TypeResult = {
@@ -261,11 +261,7 @@ type TypeResult = {
 }
 ]]
 ```
-</details>
 
-
-<details>
-<summary>Table Types</summary>
 
 ## TableRemoveIndexer
 Removes the indexer from a table type.
@@ -393,6 +389,34 @@ type TypeResult = StringToPascal<"helloWorld">
 ```
 
 
+## StringToLower
+Converts a string to lower case.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| str | string | The string to convert to lower case. |
+
+```luau
+type TypeResult = StringToLower<"helloWorld">
+
+-- type TypeResult = "helloworld"
+```
+
+
+## StringToUpper
+Converts a string to upper case.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| str | string | The string to convert to upper case. |
+
+```luau
+type TypeResult = StringToUpper<"helloWorld">
+
+-- type TypeResult = "HELLOWORLD"
+```
+
+
 ## StringReplace
 Replaces part of a string with another string.
 
@@ -425,12 +449,93 @@ type TypeResult = StringIsLiteral<"Hello">
 
 
 <details>
+<summary>Function Types</summary>
+
+## Arguments
+Outputs the arguments of a function.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| fn | (...any) -> ...any | The function to get arguments for. |
+
+```luau
+type TypeResult = Arguments<(string, number, ...boolean) -> any>
+
+--[[
+type TypeResult = {
+    1: string,
+    2: number,
+    Tail: boolean
+}
+]]
+```
+
+
+## SetArguments
+Sets the arguments for a function.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| fn | (...any) -> ...any | The function to set arguments for. |
+| args | { [`{number}`]: any, Tail: any } | The new args for the function. |
+
+```luau
+type TypeResult = SetArguments<
+    () -> (),
+    { ["1"]: string, ["2"]: boolean, Tail: number }
+>
+
+-- type TypeResult = (string, boolean, ...number) -> ()
+```
+
+
+## Returns
+Outputs the return types of a function.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| fn | (...any) -> ...any | The function to get return types for. |
+
+```luau
+type TypeResult = Returns<() -> (boolean, ... number)>
+
+
+--[[
+type TypeResult = {
+    1: boolean,
+    Tail: number
+}
+]]
+```
+
+
+## SetReturns
+Sets the return types for a function.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| fn | (...any) -> ...any | The function to set return types for. |
+| returns | { [`{number}`]: any, Tail: any } | The new return types for the function. |
+
+```luau
+type TypeResult = SetReturns<
+    () -> (),
+    { ["1"]: boolean, ["2"]: number, Tail: string }
+>
+
+-- type TypeResult = () -> (boolean, number, ...string)
+```
+
+</details>
+
+
+<details>
 <summary>Miscellaneous Types</summary>
 
 ## Expect
 Throws a type error if the first type does not equal the second.
 
-NOTE: This type treats all string literals inside of tables as being of the same type.
+NOTE: This type treats all string literals inside of tables, unions and intersections as being of the same type.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
