@@ -753,7 +753,7 @@ export type TableAddIndexerKey<Tble, KeyType> = _TableAddIndexerKey<Tble, KeyTyp
 --[=[
     Outputs a copy of the input union but only with specified components.
 
-    @param union any -- The union to pick properties from.
+    @param union any -- The union to pick components from.
     @param toOmit any -- A union/singeleton of components to be picked.
 ]=]
 type function _UnionPick(union: any, toPick: any)

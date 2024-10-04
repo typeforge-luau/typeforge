@@ -341,6 +341,24 @@ type TypeResult = UnionOmit<
 ```
 
 
+## UnionPick
+Outputs a copy of the input union but only with specified components.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| union | any | The union to pick components from. |
+| toPick | any | A union/singeleton of components to be picked. |
+
+```luau
+type TypeResult = UnionPick<
+    "hello" | string | "world",
+    "world"
+>
+
+-- type TypeResult = string | "world"
+```
+
+
 ## UnionFlatten
 Useful for combining an intersection of unions/singletons into one union.
 NOTE: This type function is not recursive.
