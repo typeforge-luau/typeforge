@@ -355,7 +355,7 @@ type TypeResult = UnionPick<
     "world"
 >
 
--- type TypeResult = string | "world"
+-- type TypeResult = string
 ```
 
 
