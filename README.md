@@ -1,5 +1,5 @@
 # Typeforge
-20+ utility user-defined type functions for luau.
+90+ utility user-defined type functions for luau.
 
 Requires the following fflags to be enabled:
 ```json
