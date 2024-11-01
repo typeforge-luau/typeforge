@@ -487,7 +487,7 @@ end
 --[=[
     Outputs true if the inputted type is nilable.
 
-    @param input any -- The type to make nilable.
+    @param input any -- The type to test to see if it is nilable.
 ]=]
 type function IsNilable(input: any)
     return Extends(types.singleton(nil), input)
@@ -497,7 +497,7 @@ end
 --[=[
     Outputs true if the inputted type is non-nilable.
 
-    @param input any -- The type to make nilable.
+    @param input any -- The type to test to see if it is non-nilable.
 ]=]
 type function IsNonNilable(input: any)
     return Not(Extends(types.singleton(nil), input))
@@ -548,7 +548,7 @@ end
     Outputs the inputted table but only with properties whos keys extends the specified types.
 
     @param input { [any]: any } -- The table to pick properties from.
-    @param toPick any -- The union of types or a singleton/primitive to pick from
+    @param toPick any -- The union of types or a singleton/primitive to pick from.
 ]=]
 type function TablePickExtends(input: { [any]: any }, toPick: any)
     if _safeIs(input, "union") then
@@ -871,7 +871,7 @@ end
 
     @param input { [any]: any } -- The table type input.
 ]=]
-type function TableAtLeastOne(input: { [any]: any })
+type function TableAtLeast(input: { [any]: any })
     local keysArr = _unionToArray(_keyof(input))
     local output = table.create(#keysArr)
 
@@ -2159,7 +2159,7 @@ end
 
 
 --[=[
-    Returns true if the input string is of the required length.
+    Outputs true if the input string is of the required length.
 
     @param input string -- The string to test the length of.
     @param length `{number}` -- The expected length of the string.
@@ -2172,7 +2172,7 @@ end
 
 
 --[=[
-    Returns true if the string is empty.
+    Outputs true if the string is empty.
 
     @param input string -- The string to test emptiness for.
 ]=]

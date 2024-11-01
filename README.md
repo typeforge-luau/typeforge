@@ -35,9 +35,30 @@ Outputs the inputted type but only with specificied components/properties.
 | toPick | any | The union of types (or a singleton/primitive) to be picked. |
 
 ```luau
-type TypeResult = Pick<"hello" & "world" & "foo" & "bar", "world" | "bar">
+type TypeResult = Pick<
+    "hello" & "world" & "foo" & "bar",
+    "world" | "bar"
+>
 
 -- type TypeResult = "bar" & "world"
+```
+
+
+## PickExtends
+Outputs the inputted type but only with components which extends the specified types.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| input | any | The type to pick components/properties from. |
+| toPick | any | The union of types (or a singleton/primitive) to pick from. |
+
+```luau
+type TypeResult = PickExtends<
+    "hello" & boolean & "world" & true & string,
+    boolean
+>
+
+-- type TypeResult = boolean & true
 ```
 
 
@@ -50,9 +71,30 @@ Outputs the inputted type but with specificied components/properties removed.
 | toOmit | any | The union of types (or a singleton/primitive) to be omitted. |
 
 ```luau
-type TypeResult = Omit<"hello" | "world" | "foo" | "bar", "world" | "bar">
+type TypeResult = Omit<
+    "hello" | "world" | "foo" | "bar",
+    "world" | "bar"
+>
 
 -- type TypeResult = "foo" | "hello"
+```
+
+
+## OmitExtends
+Outputs the inputted type but without components which extends the specified types.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| input | any | The type to omit components/properties from. |
+| toOmit | any | The union of types (or a singleton/primitive) to be omitted. |
+
+```luau
+type TypeResult = OmitExtends<
+    "hello" | boolean | "world" | true | string,
+    boolean
+>
+
+-- type TypeResult = "hello" | "world" | string
 ```
 
 
@@ -205,6 +247,76 @@ type TypeResult = {
 ```
 
 
+## IsEmpty
+Returns true if the inputted type is empty.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| input | any | The type to test emptiness for. |
+
+```luau
+type TypeResult = IsEmpty<{ }>
+
+-- type TypeResult = true
+```
+
+
+## Nilable
+Outputs a union of the inputted type and a nil singleton type.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| input | any | The type to make nilable. |
+
+```luau
+type TypeResult = Nilable<string>
+
+-- type TypeResult = string?
+```
+
+
+## NonNilable
+Outputs a union of the inputted type but with nil singleton types removed.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| input | any | The type to make non-nilable. |
+
+```luau
+type TypeResult = NonNilable<string?>
+
+-- type TypeResult = string
+```
+
+
+## IsNilable
+Outputs true if the inputted type is nilable.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| input | any | The type to test to see if it is nilable. |
+
+```luau
+type TypeResult = IsNonNilable<string?>
+
+-- type TypeResult = true
+```
+
+
+## IsNonNilable
+Outputs true if the inputted type is non-nilable.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| input | any | The type to test to see if it is non-nilable. |
+
+```luau
+type TypeResult = IsNonNilable<string?>
+
+-- type TypeResult = false
+```
+
+
 </details>
 
 
@@ -216,6 +328,7 @@ type TypeResult = {
 
 <details>
 <summary>Table Types</summary>
+
 
 ## TablePick
 Outputs the inputted table but only with specified properties.
@@ -241,6 +354,31 @@ type TypeResult = {
 ```
 
 
+## TablePickExtends
+Outputs the inputted table but only with properties whos keys extends the specified types.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| input | { [any]: any } | The table to pick properties from. |
+| toPick | any | The union of types or a singleton/primitive to pick from. |
+
+```luau
+type TypeResult = TablePickExtends<{
+    name: string,
+    age: number,
+    [string | number]: "fooBar"
+}, string>
+
+--[[
+type TypeResult = {
+    [string]: "fooBar",
+    age: number,
+    name: nil
+}
+]]
+```
+
+
 ## TableOmit
 Outputs the inputted table but with specified properties omitted.
 
@@ -259,6 +397,26 @@ type TypeResult = TableOmit<{
 type TypeResult = {
     name: string
 }
+]]
+```
+
+
+## TableOmitExtends
+Outputs the inputted table but without components which extends the specified types.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| input | { [any]: any } | The table to omit properties from. |
+| toPick | any | The union of types (or a singleton/primitive) to omit from. |
+
+```luau
+type TypeResult = TableOmitExtends<{
+    name: string,
+    age: number
+}, string>
+
+--[[
+type TypeResult = {  }
 ]]
 ```
 
@@ -382,6 +540,36 @@ type TypeResult = {
 ```
 
 
+## TableAtLeast
+Outputs a type where another type needs to have at least one of the properties from the input type in order to satify it.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| input | { [any]: any } | The table type input. |
+
+```luau
+type TypeResult = TableAtLeast<{
+    hello: "world", foo: "bar", baz: "bix"
+}>
+
+--[[
+type TypeResult = {
+    baz: "bix",
+    foo: "bar"?,
+    hello: "world"?
+} | {
+    baz: "bix"?,
+    foo: "bar",
+    hello: "world"?
+} | {
+    baz: "bix"?,
+    foo: "bar"?,
+    hello: "world"
+}
+]]
+```
+
+
 ## Partial
 Makes all of the properties in a table optional.
 
@@ -398,6 +586,52 @@ type TypeResult = {
     hello: "world"?
 }
 ]]
+```
+
+
+## PickPartial
+Picks all the partial keys from a table.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| input | { [any]: any } | The table to pick partial keys from. |
+
+```luau
+type TypeResult = PickPartial<{
+    hello: "world"?, foo: "bar", baz: "bax"?
+}>
+
+-- type TypeResult = { baz: "bax"?, hello: "world"? }
+```
+
+
+## Required
+Makes all of the properties in a table required.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| input | { [any]: any } | The table to make required. |
+
+```luau
+type TypeResult = Required<{ hello: "world"?, foo: "bar"? }>
+
+-- type TypeResult = { foo: "bar", hello: "world" }
+```
+
+
+## PickRequired
+Picks all the required keys from a table.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| input | { [any]: any } | The table to pick required keys from. |
+
+```luau
+type TypeResult = PickPartial<{
+    hello: "world"?, foo: "bar", baz: "bax"?
+}>
+
+-- type TypeResult = { foo: "bar" }
 ```
 
 
@@ -564,6 +798,20 @@ type TypeResult = {
 ```
 
 
+## TableIsEmpty
+Returns true if the table is empty.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| input | { [any]: any } | The table to test emptiness for. |
+
+```luau
+type TypeResult = TableIsEmpty<{}>
+
+-- type TypeResult = true
+```
+
+
 ## GetMetatable
 Gets the metatable for a table.
 
@@ -634,6 +882,24 @@ type TypeResult = UnionPick<
 ```
 
 
+## UnionPickExtends
+Outputs the inputted union or singleton/primitive but only with components which extends the specified types.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| input | any | The union or singleton/primitive to pick components from. |
+| toPick | any | The union of types (or a singleton/primitive) to pick from. |
+
+```luau
+type TypeResult = UnionPickExtends<
+    "hello" | false | string | "world" | boolean,
+    false | string
+>
+
+-- type TypeResult = "hello" | "world" | false | string
+```
+
+
 ## UnionOmit
 Outputs the inputted union or singleton/primitive but with specified components omitted.
 
@@ -649,6 +915,24 @@ type TypeResult = UnionOmit<
 >
 
 -- type TypeResult = "hello" | string
+```
+
+
+## UnionOmitExtends
+Outputs the inputted union or singleton/primitive but without components which extends the specified types.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| input | any | The union or singleton/primitive to omit properties from. |
+| toOmit | any | The union of types (or a singleton/primitive) to omit from. |
+
+```luau
+type TypeResult = UnionOmitExtends<
+    "hello" | false | string | "world" | boolean,
+    false | string
+>
+
+-- type TypeResult = "hello" | string | "world"
 ```
 
 
@@ -755,6 +1039,24 @@ type TypeResult = IntersectionPick<
 ```
 
 
+## IntersectionPickExtends
+Outputs the inputted intersection or singleton/primitive but with components which extends the specified types.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| input | any | The union or singleton/primitive to pick properties from. |
+| toPick | any | The union of types (or a singleton/primitive) to pick from. |
+
+```luau
+type TypeResult = IntersectionPickExtends<
+    "hello" & false & string & "world" & boolean,
+    false & string
+>
+
+-- type TypeResult = "hello" & "world" & false & string
+```
+
+
 ## IntersectionOmit
 Outputs the inputted intersection or singleton/primitive but with specified components omitted.
 
@@ -770,6 +1072,24 @@ type TypeResult = IntersectionOmit<
 >
 
 -- type TypeResult = "hello" & string
+```
+
+
+## IntersectionOmitExtends
+Outputs the inputted intersection or singleton/primitive but without components which extends the specified types.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| input | any | The union or singleton/primitive to omit properties from. |
+| toOmit | any | The union of types (or a singleton/primitive) to omit from. |
+
+```luau
+type TypeResult = IntersectionOmitExtends<
+    "hello" & false & string & "world" & boolean,
+    false & string
+>
+
+-- type TypeResult = "hello" & string & "world"
 ```
 
 
@@ -1144,6 +1464,37 @@ Gets the length of a string (returns as a stringified integer as luau doesn't cu
 type TypeResult = StringLength<"hello">
 
 -- type TypeResult = "5"
+```
+
+
+## StringIsLength
+Outputs true if the input string is of the required length.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| input | string | The string to test the length of. |
+| length | `{number}` | The expected length of the string. |
+
+
+```luau
+type TypeResult = StringIsLength<"hello", "5">
+
+-- type TypeResult = true
+```
+
+
+## StringIsEmpty
+Outputs true if the string is empty.
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| input | string | The string to test emptiness for. |
+
+
+```luau
+type TypeResult = StringIsEmpty<"">
+
+-- type TypeResult = true
 ```
 
 
