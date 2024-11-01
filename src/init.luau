@@ -28,7 +28,7 @@ SOFTWARE.
 
 --> Helper Type Functions -----------------------------------------------------------------------------
 type function _assertIs(input: any, argName: string, toAssert: string)
-    assert(input:is(toAssert), `Expected the type argument \`{argName}\` to be of type \`{toAssert}\``)
+    _safeIs(assert(input, toAssert), `Expected the type argument \`{argName}\` to be of type \`{toAssert}\``)
 end
 
 type function _assertIsMessage(argName: string, toAssert: string)
@@ -44,7 +44,7 @@ type function _safeIs(input: any, isType: any)
     return is(input, isType)
 end
 
-type function _singletonToValue(input: any)
+type function _safeValue(input: any)
     if _safeIs(input, "singleton") then return input:value() end
     return input
 end
@@ -74,13 +74,37 @@ type function _arrayToIntersection(arr: { any })
 end
 
 type function _arrayOmit(arr: { any }, toOmit: any)
-    local found = table.find(arr, toOmit)
-    if found then table.remove(arr, found) end
-    return arr
+    for idx = #arr, 1, -1 do
+        if not Equals(arr[idx], toOmit):value() then continue end
+        table.remove(arr, idx)
+        break
+    end
+end
+
+type function _arrayOmitExtends(arr: { any }, toOmit: any)
+    for idx = #arr, 1, -1 do
+        if not Extends(arr[idx], toOmit):value() then continue end
+        table.remove(arr, idx)
+    end
+end
+
+type function _arrayPick(key: any, inputComponents: { any }, output: { any })
+    for _, comp in inputComponents do
+        if not Equals(comp, key):value() then continue end
+        table.insert(output, comp)
+        break
+    end
+end
+
+type function _arrayPickExtends(key: any, inputComponents: { any }, output: { any })
+    for _, comp in inputComponents do
+        if not Extends(comp, key):value() then continue end
+        table.insert(output, comp)
+    end
 end
 
 type function _arraySingletonsToValues(input: any)
-    for idx, comp in input do input[idx] = _singletonToValue(comp) end
+    for idx, comp in input do input[idx] = _safeValue(comp) end
     return input
 end
 
@@ -91,9 +115,15 @@ end
 
 type function _arrayHasType(input: { any }, t: any)
     for _, value in input do
-        if _singletonToValue(Equals(value, t)) then return true end
+        if Equals(value, t):value() then return true end
     end
     return false
+end
+
+
+type function _unionToArray(input: any)
+    if not _safeIs(input, "union") then return { input } end
+    return input:components()
 end
 
 
@@ -101,7 +131,7 @@ type function _tableSetProperty(input: { [any]: any }, key: any, read: any, writ
     input:setreadproperty(key, read)
     -- The `write == read` comparison is to ensure that the property is not
     -- unnecessarily separated into 2 different read write properties.
-    if write then input:setwriteproperty(key, write == read and read or write) end
+    if write then input:setwriteproperty(key, if (read and write) and Equals(write, read) then read else write) end
 end
 
 type function _tableMap(input: { any }, fn: (item: any, idx: number) -> ...any)
@@ -111,10 +141,10 @@ type function _tableMap(input: { any }, fn: (item: any, idx: number) -> ...any)
 end
 
 type function _tableFindWriteValue(input: { [any]: any }, writeKey: any)
-    writeKey = _singletonToValue(writeKey)
+    writeKey = _safeValue(writeKey)
 
     for key, value in input:properties() do
-        if _singletonToValue(key) == writeKey then return value.write end
+        if _safeValue(key) == writeKey then return value.write end
     end
 end
 
@@ -161,6 +191,10 @@ type function _toPartial(input: any)
     return _combineToUnion(input, types.singleton(nil))
 end
 
+type function _toRequired(input: any)
+    return UnionOmit(input, types.singleton(nil))
+end
+
 
 type function _keyof(input: { [any]: any })
     input = TableFlatten(input)
@@ -179,51 +213,44 @@ type function _propsLength(input: { [any]: any })
 end
 
 type function _tableExtendsTable(inputA: { [any]: any }, inputB: { [any]: any })
-    local inputAProps, inputBProps = inputA:properties(), inputB:properties()
+    -- We need to copy `inputA` as we may mutate it later.
+    inputA = types.copy(inputA)
+    local inputBProps = inputB:properties()
 
-    if _propsLength(inputAProps) ~= _propsLength(inputBProps) then return false end
+    local nilSingleton = types.singleton(nil)
 
-    -- since `:writeproperty` throws an error instead of returning nil if it doesn't exist
-    -- we need to use this workaround.
-    local inputBReadProps, inputBWriteProps = types.newtable(), types.newtable()
-    for key, value in inputBProps do
-        if value.read then inputBReadProps:setproperty(key, value.read) end
-        if value.write then inputBWriteProps:setproperty(key, value.write) end
+    -- Iterates over all of the partial keys from inputB and if they don't exist in 
+    -- inputA then they are explicitly inserted with the singleton value of nil.
+    for key, value in PickPartial(inputB):properties() do
+        if not inputA:readproperty(key) then
+            inputA:setreadproperty(key, nilSingleton)
+        end
+
+        if not inputA:writeproperty(key) then
+            inputA:setwriteproperty(key, nilSingleton)
+        end
     end
 
-    for key, value in inputAProps do
-        local inputARead, inputAWrite = value.read, value.write
-        local inputBRead, inputBWrite = inputBReadProps:writeproperty(key), inputBWriteProps:writeproperty(key)
+    if _propsLength(inputA:properties()) ~= _propsLength(inputBProps) then return false end
+
+    for key, value in inputBProps do
+        local inputBRead, inputBWrite = value.read, value.write
+        local inputARead, inputAWrite = inputA:readproperty(key), inputA:writeproperty(key)
 
         if (inputARead and not inputBRead) or (inputBRead and not inputARead) then return false end
         if (inputAWrite and not inputBWrite) or (inputBWrite and not inputAWrite) then return false end
 
-
         if inputARead and inputBRead then
-            if not _singletonToValue(Extends(inputARead, inputBRead)) then return false end
+            if not Extends(inputARead, inputBRead):value() then return false end
         end
 
         if inputAWrite and inputBWrite then
-            if not _singletonToValue(Extends(inputAWrite, inputBWrite)) then return false end
+            if not Extends(inputAWrite, inputBWrite):value() then return false end
         end
     end
 
     return true
 end
-
--- since `:writeproperty` throws an error instead of returning nil if it doesn't exist
--- we need to use this workaround.
-type function _tableGetWriteProps(props: { [any]: any })
-    local writeProps = types.newtable()
-
-    for key, value in props do
-        local write = value.write
-        if write then writeProps:setwriteproperty(key, write) end
-    end
-
-    return writeProps
-end
-
 
 type function _toCamel(input: string)
     return types.singleton(string.lower(string.sub(input, 1, 1))..string.sub(input, 2, -1))
@@ -253,9 +280,24 @@ end
 ]=]
 type function Pick(input: { [any]: any }, toOmit: any)
     return
-        if input:is("table") then TablePick(input, toOmit)
-        elseif input:is("union") then UnionPick(input, toOmit)
-        elseif input:is("intersection") then IntersectionPick(input, toOmit)
+        if _safeIs(input, "table") then TablePick(input, toOmit)
+        elseif _safeIs(input, "union") then UnionPick(input, toOmit)
+        elseif _safeIs(input, "intersection") then IntersectionPick(input, toOmit)
+        else input
+end
+
+
+--[=[
+    Outputs the inputted type but only with components which extends the specified types.
+
+    @param input any -- The type to pick components/properties from.
+    @param toPick any -- The union of types (or a singleton/primitive) to pick from.
+]=]
+type function PickExtends(input: { [any]: any }, toOmit: any)
+    return
+        if _safeIs(input, "table") then TablePickExtends(input, toOmit)
+        elseif _safeIs(input, "union") then UnionPickExtends(input, toOmit)
+        elseif _safeIs(input, "intersection") then IntersectionPickExtends(input, toOmit)
         else input
 end
 
@@ -264,13 +306,27 @@ end
     Outputs the inputted type but with specificied components/properties removed.
 
     @param input any -- The type to omit components/properties from.
-    @param toOmit any -- The union of types (or a singleton/primitive) to be omitted.
+    @param toOmit any -- The union of types (or a singleton/primitive) to be omit from.
 ]=]
 type function Omit(input: { [any]: any }, toOmit: any)
     return
-        if input:is("table") then TableOmit(input, toOmit)
-        elseif input:is("intersection") then IntersectionOmit(input, toOmit)
+        if _safeIs(input, "table") then TableOmit(input, toOmit)
+        elseif _safeIs(input, "intersection") then IntersectionOmit(input, toOmit)
         else UnionOmit(input, toOmit)
+end
+
+
+--[=[
+    Outputs the inputted type but without components which extends the specified types.
+
+    @param input any -- The type to omit components/properties from.
+    @param toOmit any -- The union of types (or a singleton/primitive) to be omitted.
+]=]
+type function OmitExtends(input: { [any]: any }, toOmit: any)
+    return
+        if _safeIs(input, "table") then TableOmitExtends(input, toOmit)
+        elseif _safeIs(input, "intersection") then IntersectionOmitExtends(input, toOmit)
+        else UnionOmitExtends(input, toOmit)
 end
 
 
@@ -283,9 +339,9 @@ type function Clean(input: { [any]: any })
     input = Flatten(input)
 
     return
-        if input:is("table") then TableClean(input)
-        elseif input:is("union") then UnionClean(input)
-        elseif input:is("intersection") then IntersectionClean(input)
+        if _safeIs(input, "table") then TableClean(input)
+        elseif _safeIs(input, "union") then UnionClean(input)
+        elseif _safeIs(input, "intersection") then IntersectionClean(input)
         else input
 end
 
@@ -312,13 +368,13 @@ type function Equals(inputA: any, inputB: any)
     if inputB and not inputA then return types.singleton(false) end
 
     if (typeof(inputA) == "userdata" and typeof(inputB) == "userdata") and (inputA.is and inputB.is) then
-        if inputA:is("table") and inputB:is("table") then return TableEquals(inputA, inputB) end
-        if inputA:is("union") and inputB:is("union") then return UnionEquals(inputA, inputB) end
-        if inputA:is("intersection") and inputB:is("intersection") then return IntersectionEquals(inputA, inputB) end
-        if inputA:is("function") and inputB:is("function") then return FunctionEquals(inputA, inputB) end
+        if _safeIs(inputA, "table") and _safeIs(inputB, "table") then return TableEquals(inputA, inputB) end
+        if _safeIs(inputA, "union") and _safeIs(inputB, "union") then return UnionEquals(inputA, inputB) end
+        if _safeIs(inputA, "intersection") and _safeIs(inputB, "intersection") then return IntersectionEquals(inputA, inputB) end
+        if _safeIs(inputA, "function") and _safeIs(inputB, "function") then return FunctionEquals(inputA, inputB) end
     end
 
-    return types.singleton(_singletonToValue(inputA) == _singletonToValue(inputB))
+    return types.singleton(_safeValue(inputA) == _safeValue(inputB))
 end
   
 
@@ -386,6 +442,66 @@ end
 type function ToLower(input: any)
     return if _safeIs(input, "table") then TableToLower(input) else StringToLower(input)
 end
+
+
+--[=[
+    Returns true if the inputted type is empty.
+
+    @param input any -- The type to test emptiness for.
+]=]
+type function IsEmpty(input: { [any]: any } | string)
+    if _safeIs(input, "table") then return TableIsEmpty(input)
+    else return StringIsEmpty(input) end
+end
+
+
+--[=[
+    Outputs a union of the inputted type and a nil singleton type.
+
+    @param input any -- The type to make nilable.
+]=]
+type function Nilable(input: any)
+    local nilSingleton = types.singleton(nil)
+
+    -- Returns the inputted type if it already nilable.
+    if Extends(nilSingleton, input):value() then return input end
+
+    if _safeIs(input, "union") then
+        return _arrayToUnion(input:components(), nilSingleton)
+    else
+        return types.unionof(input, nilSingleton)
+    end
+end
+
+
+--[=[
+    Outputs a union of the inputted type but with nil singleton types removed.
+
+    @param input any -- The type to make non-nilable.
+]=]
+type function NonNilable(input: any)
+    return UnionOmit(input, types.singleton(nil))
+end
+
+
+--[=[
+    Outputs true if the inputted type is nilable.
+
+    @param input any -- The type to make nilable.
+]=]
+type function IsNilable(input: any)
+    return Extends(types.singleton(nil), input)
+end
+
+
+--[=[
+    Outputs true if the inputted type is non-nilable.
+
+    @param input any -- The type to make nilable.
+]=]
+type function IsNonNilable(input: any)
+    return Not(Extends(types.singleton(nil), input))
+end
 -------------------------------------------------------------------------------------------------------
 
 
@@ -397,31 +513,23 @@ end
     @param toPick any -- The union of types or a singleton/primitive to be picked.
 ]=]
 type function TablePick(input: { [any]: any }, toPick: any)
-    if input:is("union") then
+    if _safeIs(input, "union") then
         return _arrayToUnion(_tableMap(UnionFlatten(input):components(), function(comp) return TablePick(comp, toPick) end))
     end
-    if input:is("intersection") then
+    if _safeIs(input, "intersection") then
         return _arrayToIntersection(_tableMap(IntersectionFlatten(input):components(), function(comp) return TablePick(comp, toPick) end))
     end
     _assertIs(input, "input", "table")
+
     input = TableFlatten(input)
-
-    -- since `:writeproperty` throws an error instead of returning nil if it doesn't exist
-    -- we need to use this workaround.
-    local readProps, writeProps = types.newtable({}), types.newtable({})
-    for key, value in input:properties() do
-        if value.read then readProps:setwriteproperty(key, value.read) end
-        if value.write then writeProps:setwriteproperty(key, value.write) end
-    end
-
     local output = types.newtable()
 
     local function pickKey(key: any)
-        if not key:is("singleton") then return end
-        _tableSetProperty(output, key, readProps:writeproperty(key), writeProps:writeproperty(key))
+        if not _safeIs(key, "singleton") then return end
+        _tableSetProperty(output, key, input:readproperty(key), input:writeproperty(key))
     end
 
-    if toPick:is("union") then
+    if _safeIs(toPick, "union") then
         for _,key in toPick:components() do pickKey(key) end
     else
         pickKey(toPick)
@@ -437,27 +545,112 @@ end
 
 
 --[=[
+    Outputs the inputted table but only with properties whos keys extends the specified types.
+
+    @param input { [any]: any } -- The table to pick properties from.
+    @param toPick any -- The union of types or a singleton/primitive to pick from
+]=]
+type function TablePickExtends(input: { [any]: any }, toPick: any)
+    if _safeIs(input, "union") then
+        return _arrayToUnion(_tableMap(UnionFlatten(input):components(), function(comp) return TablePick(comp, toPick) end))
+    end
+    if _safeIs(input, "intersection") then
+        return _arrayToIntersection(_tableMap(IntersectionFlatten(input):components(), function(comp) return TablePick(comp, toPick) end))
+    end
+    _assertIs(input, "input", "table")
+
+    input = TableFlatten(input)
+    local output = types.newtable()
+
+    local function pickKey(keyToPick: any)
+        for key, value in input:properties() do
+            if Extends(key, keyToPick):value() then
+                _tableSetProperty(output, key, value.read, value.write)
+
+                -- Removes the key from the flattened (and cloned) input so that it can't be picked more than once.
+                input:setproperty(key, types.singleton(nil))
+            end
+        end
+    end
+
+    if _safeIs(toPick, "union") then
+        for _,keyToPick in toPick:components() do pickKey(keyToPick) end
+    else
+        pickKey(toPick)
+    end
+
+    local indexer = input:indexer()
+    if indexer then
+        output:setindexer(UnionPickExtends(indexer.index, toPick), indexer.writeresult)
+    end
+
+    return output
+end
+
+
+--[=[
     Outputs the inputted table but with specified properties omitted.
 
     @param input { [any]: any } -- The table to omit properties from.
     @param toOmit any -- The union of types (or a singleton/primitive) to be omitted.
 ]=]
 type function TableOmit(input: { [any]: any }, toOmit: any)
-    if input:is("union") then
+    if _safeIs(input, "union") then
         return _arrayToUnion(_tableMap(UnionFlatten(input):components(), function(comp) return TableOmit(comp, toOmit) end))
     end
-    if input:is("intersection") then
+    if _safeIs(input, "intersection") then
         return _arrayToIntersection(_tableMap(IntersectionFlatten(input):components(), function(comp) return TableOmit(comp, toOmit) end))
     end
     _assertIs(input, "input", "table")
+    
     local output = TableFlatten(input)
 
     local function omitKey(key: any)
-        if key:is("singleton") then output:setproperty(key, nil) end
+        if _safeIs(key, "singleton") then output:setproperty(key, nil) end
     end
 
-    if toOmit:is("union") then
+    if _safeIs(toOmit, "union") then
         for _,key in toOmit:components() do omitKey(key) end
+    else
+        omitKey(toOmit)
+    end
+
+    local indexer = input:indexer()
+    if indexer then
+        output:setindexer(UnionOmit(indexer.index, toOmit), indexer.writeresult)
+    end
+
+    return output
+end
+
+
+--[=[
+    Outputs the inputted table but without components which extends the specified types.
+
+    @param input { [any]: any } -- The table to omit properties from.
+    @param toOmit any -- The union of types (or a singleton/primitive) to omit from.
+]=]
+type function TableOmitExtends(input: { [any]: any }, toOmit: any)
+    if _safeIs(input, "union") then
+        return _arrayToUnion(_tableMap(UnionFlatten(input):components(), function(comp) return TableOmit(comp, toOmit) end))
+    end
+    if _safeIs(input, "intersection") then
+        return _arrayToIntersection(_tableMap(IntersectionFlatten(input):components(), function(comp) return TableOmit(comp, toOmit) end))
+    end
+    _assertIs(input, "input", "table")
+    
+    local output = TableFlatten(input)
+
+    local function omitKey(keyToPick: any)
+        for key, value in input:properties() do
+            if Extends(key, keyToPick):value() then
+                output:setproperty(key, nil)
+            end
+        end
+    end
+
+    if _safeIs(toOmit, "union") then
+        for _,keyToOmit in toOmit:components() do omitKey(keyToOmit) end
     else
         omitKey(toOmit)
     end
@@ -477,26 +670,26 @@ end
     @param input { [any]: any } -- The table to flatten.
 ]=]
 type function TableFlatten(input: any)
-    if input:is("table") then return input end
-    if input:is("union") then return _arrayToUnion(_tableMap(UnionFlatten(input):components(), TableFlatten)) end
-    if not input:is("intersection") then return input end
+    if _safeIs(input, "table") then return input end
+    if _safeIs(input, "union") then return _arrayToUnion(_tableMap(UnionFlatten(input):components(), TableFlatten)) end
+    if not _safeIs(input, "intersection") then return input end
 
     local output = types.newtable()
     local options, extra = {}, {}
     local outputIndexer
 
     for _,comp in input:components() do
-        if comp:is("intersection") then comp = TableFlatten(comp) end
+        if _safeIs(comp, "intersection") then comp = TableFlatten(comp) end
 
-        if comp:is("union") then
+        if _safeIs(comp, "union") then
             _tableInsertMany(options, comp:components()) 
             continue
         
-        elseif comp:is("intersection") then
+        elseif _safeIs(comp, "intersection") then
             _tableInsertMany(extra, comp:components())
             continue
 
-        elseif not comp:is("table") then
+        elseif not _safeIs(comp, "table") then
             table.insert(extra, comp)
             continue
         end
@@ -536,9 +729,9 @@ end
     @param input { [any]: any } -- The table to clean.
 ]=]
 type function TableClean(input: { [any]: any })
-    if input:is("union") then return _arrayToUnion(_tableMap(UnionFlatten(input):components(), TableClean)) end
-    if input:is("intersection") then return _arrayToIntersection(_tableMap(IntersectionFlatten(input):components(), TableClean)) end
-    if not input:is("table") then return input end
+    if _safeIs(input, "union") then return _arrayToUnion(_tableMap(UnionFlatten(input):components(), TableClean)) end
+    if _safeIs(input, "intersection") then return _arrayToIntersection(_tableMap(IntersectionFlatten(input):components(), TableClean)) end
+    if not _safeIs(input, "table") then return input end
 
     local output = types.newtable()
 
@@ -562,25 +755,17 @@ end
     @param inputB { [any]: any } -- The second table to compare.
 ]=]
 type function TableEquals(inputA: { [any]: any }, inputB: { [any]: any })
-    if not inputA:is("table") or not inputB:is("table") then return types.singleton(false) end
+    if not _safeIs(inputA, "table") or not _safeIs(inputB, "table") then return types.singleton(false) end
 
     local inputAPropsLength, inputBPropsLength = _tablePropsLength(inputA), _tablePropsLength(inputB)
     -- If they don't have the same amount of properties then we know they are not equal.
     if inputAPropsLength ~= inputBPropsLength then return types.singleton(false) end
 
-    -- since `:writeproperty` throws an error instead of returning nil
-    -- if it doesn't exist we need to use this workaround.
-    local inputBReadProps, inputBWriteProps = types.newtable(), types.newtable()
-    for key, value in inputB:properties() do
-        if value.read then inputBReadProps:setwriteproperty(key, value.read) end
-        if value.write then inputBWriteProps:setwriteproperty(key, value.write) end
-    end
-
     for key, value in inputA:properties() do
         local inputARead, inputAWrite = value.read, value.write
-        local inputBRead, inputBWrite = inputBReadProps:writeproperty(key), inputBWriteProps:writeproperty(key)
+        local inputBRead, inputBWrite = inputB:readproperty(key), inputB:writeproperty(key)
 
-        if _singletonToValue(Equals(inputARead, inputBRead)) and _singletonToValue(Equals(inputAWrite, inputBWrite)) then continue end
+        if Equals(inputARead, inputBRead):value() and Equals(inputAWrite, inputBWrite):value() then continue end
         return types.singleton(false)
     end
 
@@ -598,11 +783,10 @@ type function TableDiff(inputA: { [any]: any }, inputB: { [any]: any })
     local output = types.newtable()
 
     local inputAProps, inputBProps = inputA:properties(), inputB:properties()
-    local inputAWriteProps, inputBWriteProps = _tableGetWriteProps(inputAProps), _tableGetWriteProps(inputBProps)
 
     for key, value in inputAProps do
         local inputARead, inputAWrite = value.read, value.write
-        local inputBRead, inputBWrite = inputB:readproperty(key), inputBWriteProps:writeproperty(key)
+        local inputBRead, inputBWrite = inputB:readproperty(key), inputB:writeproperty(key)
 
         local maybeRead = if inputARead and not inputBRead then inputARead else nil
         local maybeWrite = if inputAWrite and not inputBWrite then inputAWrite else nil
@@ -611,7 +795,7 @@ type function TableDiff(inputA: { [any]: any }, inputB: { [any]: any })
 
     for key, value in inputBProps do
         local inputBRead, inputBWrite = value.read, value.write
-        local inputARead, inputAWrite = inputA:readproperty(key), inputAWriteProps:writeproperty(key)
+        local inputARead, inputAWrite = inputA:readproperty(key), inputA:writeproperty(key)
 
         local maybeRead = if inputBRead and not inputARead then inputBRead else nil
         local maybeWrite = if inputBWrite and not inputAWrite then inputBWrite else nil
@@ -632,11 +816,10 @@ type function TableOverlap(inputA: { [any]: any }, inputB: { [any]: any })
     local output = types.newtable()
 
     local inputAProps, inputBProps = inputA:properties(), inputB:properties()
-    local inputAWriteProps, inputBWriteProps = _tableGetWriteProps(inputAProps), _tableGetWriteProps(inputBProps)
 
     for key, value in inputAProps do
         local inputARead, inputAWrite = value.read, value.write
-        local inputBRead, inputBWrite = inputB:readproperty(key), inputBWriteProps:writeproperty(key)
+        local inputBRead, inputBWrite = inputB:readproperty(key), inputB:writeproperty(key)
 
         local maybeRead = if Equals(inputARead, inputBRead):value() then inputARead else nil
         local maybeWrite = if Equals(inputAWrite, inputBWrite):value() then inputAWrite else nil
@@ -645,7 +828,7 @@ type function TableOverlap(inputA: { [any]: any }, inputB: { [any]: any })
 
     for key, value in inputBProps do
         local inputBRead, inputBWrite = value.read, value.write
-        local inputARead, inputAWrite = inputA:readproperty(key), inputAWriteProps:writeproperty(key)
+        local inputARead, inputAWrite = inputA:readproperty(key), inputA:writeproperty(key)
 
         local maybeRead = if Equals(inputBRead, inputARead):value() then inputBRead else nil
         local maybeWrite = if Equals(inputBWrite, inputAWrite):value() then inputBWrite else nil
@@ -684,6 +867,28 @@ end
 
 
 --[=[
+    Outputs a type where another type needs to have at least one of the properties from the input type in order to satify it.
+
+    @param input { [any]: any } -- The table type input.
+]=]
+type function TableAtLeastOne(input: { [any]: any })
+    local keysArr = _unionToArray(_keyof(input))
+    local output = table.create(#keysArr)
+
+    local inputPartial = Partial(input)
+
+    for idx, chosenKey in keysArr do
+
+        local subOutput = types.copy(inputPartial)
+        _tableSetProperty(subOutput, chosenKey, _toRequired(subOutput:readproperty(chosenKey)),  _toRequired(subOutput:writeproperty(chosenKey)))
+        output[idx] = subOutput
+    end
+
+    return _arrayToUnion(output)
+end
+
+
+--[=[
     Makes all of the properties in a table optional.
 
     @param input { [any]: any } -- The table to make partial.
@@ -701,6 +906,88 @@ type function Partial(input: { [any]: any })
     local indexer = input:indexer()
     if indexer then
         output:setindexer(indexer.index, _toPartial(indexer.writeresult or indexer.readresult))
+    end
+
+    return output
+end
+
+
+--[=[
+    Picks all the partial keys from a table.
+
+    @param input { [any]: any } -- The table to pick partial keys from.
+]=]
+type function PickPartial(input: { [any]: any })
+    local output = types.newtable()
+    local nilSingleton = types.singleton(nil)
+
+    for key, value in input:properties() do
+        local read, write = value.read, value.write
+        if (read and write) and Equals(read, write) then read = write end
+
+        if Extends(nilSingleton, read):value() then output:setreadproperty(key, read) end
+        if Extends(nilSingleton, write):value() then output:setwriteproperty(key, write) end
+    end
+
+    local indexer = input:indexer()
+    if indexer then
+        local indexerValue = indexer.writeresult or indexer.readresult
+        if Extends(indexerValue, nilSingleton) then
+            output:setindexer(indexer.index, indexer.writeresult or indexer.readresult)
+        end
+    end
+
+    return output
+end
+
+
+--[=[
+    Makes all of the properties in a table required.
+
+    @param input { [any]: any } -- The table to make required.
+]=]
+type function Required(input: { [any]: any })
+    input = TableFlatten(input)
+    _assertIs(input, "input", "table")
+
+    local output = types.newtable()
+
+    for key, value in input:properties() do
+        _tableSetProperty(output, key, _toRequired(value.read), _toRequired(value.write))
+    end
+
+    local indexer = input:indexer()
+    if indexer then
+        output:setindexer(indexer.index, _toRequired(indexer.writeresult or indexer.readresult))
+    end
+
+    return output
+end
+
+
+--[=[
+    Picks all the required keys from a table.
+
+    @param input { [any]: any } -- The table to pick required keys from.
+]=]
+type function PickRequired(input: { [any]: any })
+    local output = types.newtable()
+    local nilSingleton = types.singleton(nil)
+
+    for key, value in input:properties() do
+        local read, write = value.read, value.write
+        if (read and write) and Equals(read, write) then read = write end
+
+        if not Extends(nilSingleton, read):value() then output:setreadproperty(key, read) end
+        if not Extends(nilSingleton, write):value() then output:setwriteproperty(key, write) end
+    end
+
+    local indexer = input:indexer()
+    if indexer then
+        local indexerValue = indexer.writeresult or indexer.readresult
+        if Extends(indexerValue, nilSingleton) then
+            output:setindexer(indexer.index, indexer.writeresult or indexer.readresult)
+        end
     end
 
     return output
@@ -828,8 +1115,8 @@ type function TableToCamel(input: { [any]: any })
 
         _tableSetProperty(
             output, StringToCamel(key),
-            read:is("table") and TableToCamel(read) or read,
-            write:is("table") and TableToCamel(write) or write
+            _safeIs(read, "table") and TableToCamel(read) or read,
+            _safeIs(write, "table") and TableToCamel(write) or write
         )
     end
 
@@ -850,8 +1137,8 @@ type function TableToPascal(input: { [any]: any })
 
         _tableSetProperty(
             output, StringToPascal(key),
-            read:is("table") and TableToPascal(read) or read,
-            write:is("table") and TableToPascal(write) or write
+            _safeIs(read, "table") and TableToPascal(read) or read,
+            _safeIs(write, "table") and TableToPascal(write) or write
         )
     end
 
@@ -872,8 +1159,8 @@ type function TableToUpper(input: { [any]: any })
 
         _tableSetProperty(
             output, StringToUpper(key),
-            read:is("table") and TableToUpper(read) or read,
-            write:is("table") and TableToUpper(write) or write
+            _safeIs(read, "table") and TableToUpper(read) or read,
+            _safeIs(write, "table") and TableToUpper(write) or write
         )
     end
 
@@ -894,12 +1181,22 @@ type function TableToLower(input: { [any]: any })
 
         _tableSetProperty(
             output, StringToLower(key),
-            read:is("table") and TableToLower(read) or read,
-            write:is("table") and TableToLower(write) or write
+            _safeIs(read, "table") and TableToLower(read) or read,
+            _safeIs(write, "table") and TableToLower(write) or write
         )
     end
 
     return output
+end
+
+
+--[=[
+    Returns true if the table is empty.
+
+    @param input { [any]: any } -- The table to test emptiness for.
+]=]
+type function TableIsEmpty(input: { [any]: any })
+    return types.singleton(_tableIsEmpty(input))
 end
 
 
@@ -954,19 +1251,33 @@ end
 ]=]
 type function UnionPick(input: any, toPick: any)
     input = UnionFlatten(input)
-    local unionComponents = input:is("union") and _arraySingletonsToValues(input:components()) or { _singletonToValue(input) }
+    local inputComponents = _safeIs(input, "union") and _arraySingletonsToValues(input:components()) or { _safeValue(input) }
     local output = {}
 
-    local function pickKey(key: any)
-        if table.find(unionComponents, key) and not table.find(output, key) then
-            table.insert(output, key)
-        end
-    end
-
-    if toPick:is("union") then
-        for _,comp in toPick:components() do pickKey(_singletonToValue(comp)) end
+    if _safeIs(toPick, "union") then
+        for _,comp in toPick:components() do _arrayPick(_safeValue(comp), inputComponents, output) end
         
-    else pickKey(_singletonToValue(toPick)) end
+    else _arrayPick(_safeValue(toPick), inputComponents, output) end
+
+    return _arrayToUnion(_arrayValuesToSingletons(output))
+end
+
+
+--[=[
+    Outputs the inputted union or singleton/primitive but only with components which extends the specified types.
+
+    @param union any -- The union or singleton/primitive to pick components from.
+    @param toPick any -- The union of types (or a singleton/primitive) to pick from.
+]=]
+type function UnionPickExtends(input: any, toPick: any)
+    input, toPick = UnionFlatten(input), Clean(Flatten(toPick))
+    local inputComponents = _safeIs(input, "union") and _arraySingletonsToValues(input:components()) or { _safeValue(input) }
+    local output = {}
+
+    if _safeIs(toPick, "union") then
+        for _,comp in toPick:components() do _arrayPickExtends(_safeValue(comp), inputComponents, output) end
+        
+    else _arrayPickExtends(_safeValue(toPick), inputComponents, output) end
 
     return _arrayToUnion(_arrayValuesToSingletons(output))
 end
@@ -980,14 +1291,35 @@ end
 ]=]
 type function UnionOmit(input: any, toOmit: any)
     input = UnionFlatten(input)
-    local outputComponents = input:is("union") and _arraySingletonsToValues(input:components()) or { _singletonToValue(input) }
+    local outputComponents = _safeIs(input, "union") and _arraySingletonsToValues(input:components()) or { _safeValue(input) }
 
-    if toOmit:is("union") then
+    if _safeIs(toOmit, "union") then
         for _,comp in toOmit:components() do
-            _arrayOmit(outputComponents, _singletonToValue(comp))
+            _arrayOmit(outputComponents, _safeValue(comp))
         end
 
-    else _arrayOmit(outputComponents, _singletonToValue(toOmit)) end
+    else _arrayOmit(outputComponents, _safeValue(toOmit)) end
+
+    return _arrayToUnion(_arrayValuesToSingletons(outputComponents))
+end
+
+
+--[=[
+    Outputs the inputted union or singleton/primitive but without components which extends the specified types.
+
+    @param input any -- The union or singleton/primitive to omit properties from.
+    @param toOmit any -- The union of types (or a singleton/primitive) to omit from.
+]=]
+type function UnionOmitExtends(input: any, toOmit: any)
+    input = UnionFlatten(input)
+    local outputComponents = _safeIs(input, "union") and _arraySingletonsToValues(input:components()) or { _safeValue(input) }
+
+    if _safeIs(toOmit, "union") then
+        for _,comp in toOmit:components() do
+            _arrayOmitExtends(outputComponents, _safeValue(comp))
+        end
+
+    else _arrayOmitExtends(outputComponents, _safeValue(toOmit)) end
 
     return _arrayToUnion(_arrayValuesToSingletons(outputComponents))
 end
@@ -1000,15 +1332,16 @@ end
 ]=]
 type function UnionClean(input: any)
     input = UnionFlatten(input)
-    if not input:is("union") then return input end
+    if _safeIs(input, "intersection") then return _arrayToIntersection(_tableMap(input:components(), UnionClean)) end
+    if not _safeIs(input, "union") then return input end
 
     local output = {}
 
     local function maybeInsertIntoCleaned(comp: any)
-        comp = _singletonToValue(comp)
+        comp = _safeValue(comp)
 
         for _,value in output do
-            if _singletonToValue(Equals(value, comp)) then return end
+            if Equals(value, comp):value() then return end
         end
         
         table.insert(output, comp)
@@ -1017,7 +1350,7 @@ type function UnionClean(input: any)
     for idx,comp in input:components() do
         comp = UnionClean(comp)
 
-        if comp:is("union") then
+        if _safeIs(comp, "union") then
             for idx, subComp in comp:components() do
                 maybeInsertIntoCleaned(subComp)
             end
@@ -1031,19 +1364,20 @@ type function UnionClean(input: any)
 end
 
 
+
 --[=[
     Recursively flattens nested unions into one union, semantics are preserved.
 
     @param union any -- The union of types (or a singleton/primitive) to be flattened.
 ]=]
 type function UnionFlatten(input: any)
-    if input:is("union") then
+    if _safeIs(input, "union") then
         local output = {}
 
         for _,comp in input:components() do
-            if comp:is("union") or comp:is("intersection") then
+            if _safeIs(comp, "union") or _safeIs(comp, "intersection") then
                 local compOutput = UnionFlatten(comp)
-                if compOutput:is("union") then
+                if _safeIs(compOutput, "union") then
                     _tableInsertMany(output, compOutput:components())
                 else
                     table.insert(output, compOutput)
@@ -1054,7 +1388,7 @@ type function UnionFlatten(input: any)
 
         return _arrayToUnion(output)
 
-    elseif input:is("intersection") then
+    elseif _safeIs(input, "intersection") then
         return _arrayToIntersection(_tableMap(input:components(), UnionFlatten))
     end
 
@@ -1069,27 +1403,25 @@ end
     @param inputB any -- the second union to compare.
 ]=]
 type function UnionEquals(inputA: any, inputB: any)
-    if inputA:is("intersection") and inputB:is("union") then return types.singleton(false) end
-    if inputB:is("intersection") and inputA:is("union") then return types.singleton(false) end
+    if _safeIs(inputA, "intersection") and _safeIs(inputB, "union") then return types.singleton(false) end
+    if _safeIs(inputB, "intersection") and _safeIs(inputA, "union") then return types.singleton(false) end
 
-    local inputAComponentsLength = inputA:is("union") and #inputA:components() or 1
-    local inputBComponentsLength = inputB:is("union") and #inputB:components() or 1
+    local inputAComponentsLength = _safeIs(inputA, "union") and #inputA:components() or 1
+    local inputBComponentsLength = _safeIs(inputB, "union") and #inputB:components() or 1
     if inputAComponentsLength ~= inputBComponentsLength then return types.singleton(false) end
 
     inputA, inputB = UnionClean(UnionFlatten(inputA)), UnionClean(UnionFlatten(inputB))
-    local inputAComponents = inputA:is("union") and inputA:components() or { inputA }
-    local inputBComponents = inputB:is("union") and inputB:components() or { inputB }
+    local inputAComponents = _safeIs(inputA, "union") and inputA:components() or { inputA }
+    local inputBComponents = _safeIs(inputB, "union") and inputB:components() or { inputB }
 
     local matches = 0
     for _,compA in inputAComponents do
-
         for _,compB in inputBComponents do
-            if _singletonToValue(Equals(compA, compB)) then matches += 1 end
+            if Equals(compA, compB):value() then matches += 1 end
         end
-
     end
 
-    return types.singleton(#inputAComponents == matches and true or false)
+    return types.singleton(if #inputAComponents == matches and #inputBComponents == matches then true else false)
 end
 
 
@@ -1100,8 +1432,8 @@ end
     @param inputB any -- the second union.
 ]=]
 type function UnionDiff(inputA: any, inputB: any)
-    local inputAComponents = inputA:is("union") and inputA:components() or { inputA }
-    local inputBComponents = inputB:is("union") and inputB:components() or { inputB }
+    local inputAComponents = _safeIs(inputA, "union") and inputA:components() or { inputA }
+    local inputBComponents = _safeIs(inputB, "union") and inputB:components() or { inputB }
 
     local output = {}
 
@@ -1126,8 +1458,8 @@ end
     @param inputB any -- the second union.
 ]=]
 type function UnionOverlap(inputA: any, inputB: any)
-    local inputAComponents = inputA:is("union") and inputA:components() or { inputA }
-    local inputBComponents = inputB:is("union") and inputB:components() or { inputB }
+    local inputAComponents = _safeIs(inputA, "union") and inputA:components() or { inputA }
+    local inputBComponents = _safeIs(inputB, "union") and inputB:components() or { inputB }
 
     local output = {}
 
@@ -1157,19 +1489,33 @@ end
 ]=]
 type function IntersectionPick(input: any, toPick: any)
     input = IntersectionFlatten(input)
-    local outputComponents = input:is("intersection") and _arraySingletonsToValues(input:components()) or { _singletonToValue(input) }
+    local inputComponents = _safeIs(input, "intersection") and _arraySingletonsToValues(input:components()) or { _safeValue(input) }
     local output = {}
 
-    local function pickKey(key: any)
-        if table.find(outputComponents, key) and not table.find(output, key) then
-            table.insert(output, key)
-        end
-    end
-
-    if toPick:is("union") then
-        for _,comp in toPick:components() do pickKey(_singletonToValue(comp)) end
+    if _safeIs(toPick, "intersection") then
+        for _,comp in toPick:components() do _arrayPick(_safeValue(comp), inputComponents, output) end
         
-    else pickKey(_singletonToValue(toPick)) end
+    else _arrayPick(_safeValue(toPick), inputComponents, output) end
+
+    return _arrayToIntersection(_arrayValuesToSingletons(output))
+end
+
+
+--[=[
+    Outputs the inputted intersection or singleton/primitive but only with components which extends the specified types.
+
+    @param input any -- The intersection or singleton/primitive to pick components from.
+    @param toPick any -- The union of types (or a singleton/primitive) to pick from.
+]=]
+type function IntersectionPickExtends(input: any, toPick: any)
+    input = IntersectionFlatten(input)
+    local inputComponents = _safeIs(input, "intersection") and _arraySingletonsToValues(input:components()) or { _safeValue(input) }
+    local output = {}
+
+    if _safeIs(toPick, "intersection") then
+        for _,comp in toPick:components() do _arrayPickExtends(_safeValue(comp), inputComponents, output) end
+        
+    else _arrayPickExtends(_safeValue(toPick), inputComponents, output) end
 
     return _arrayToIntersection(_arrayValuesToSingletons(output))
 end
@@ -1183,14 +1529,36 @@ end
 ]=]
 type function IntersectionOmit(input: any, toOmit: any)
     input = IntersectionFlatten(input)
-    local outputComponents = input:is("intersection") and _arraySingletonsToValues(input:components()) or { _singletonToValue(input) }
+    local outputComponents = _safeIs(input, "intersection") and _arraySingletonsToValues(input:components()) or { _safeValue(input) }
 
-    if toOmit:is("union") then
+    if _safeIs(toOmit, "union") then
         for _,comp in toOmit:components() do
-            _arrayOmit(outputComponents, _singletonToValue(comp))
+            _arrayOmit(outputComponents, _safeValue(comp))
         end
     else
-        _arrayOmit(outputComponents, _singletonToValue(toOmit))
+        _arrayOmit(outputComponents, _safeValue(toOmit))
+    end
+
+    return _arrayToIntersection(_arrayValuesToSingletons(outputComponents))
+end
+
+
+--[=[
+    Outputs the inputted intersection or singleton/primitive but without components which extends the specified types.
+
+    @param input any -- The intersection or singleton/primitive to omit properties from.
+    @param toOmit any -- The union of types (or a singleton/primitive) to omit from.
+]=]
+type function IntersectionOmitExtends(input: any, toOmit: any)
+    input = IntersectionFlatten(input)
+    local outputComponents = _safeIs(input, "intersection") and _arraySingletonsToValues(input:components()) or { _safeValue(input) }
+
+    if _safeIs(toOmit, "union") then
+        for _,comp in toOmit:components() do
+            _arrayOmitExtends(outputComponents, _safeValue(comp))
+        end
+    else
+        _arrayOmitExtends(outputComponents, _safeValue(toOmit))
     end
 
     return _arrayToIntersection(_arrayValuesToSingletons(outputComponents))
@@ -1204,15 +1572,16 @@ end
 ]=]
 type function IntersectionClean(input: any)
     input = IntersectionFlatten(input)
-    if not input:is("intersection") then return input end
+    if _safeIs(input, "union") then return _arrayToUnion(_tableMap(input:components(), IntersectionClean)) end
+    if not _safeIs(input, "intersection") then return input end
 
     local output = {}
 
     local function maybeInsertIntoCleaned(comp: any)
-        comp = _singletonToValue(comp)
+        comp = _safeValue(comp)
         
         for _,value in output do
-            if _singletonToValue(Equals(value, comp)) then return end
+            if Equals(value, comp):value() then return end
         end
 
         table.insert(output, comp)
@@ -1221,7 +1590,7 @@ type function IntersectionClean(input: any)
     for idx,comp in input:components() do
         comp = IntersectionClean(comp)
 
-        if comp:is("intersection") then
+        if _safeIs(comp, "intersection") then
             for idx, subComp in comp:components() do
                 maybeInsertIntoCleaned(subComp)
             end
@@ -1241,13 +1610,13 @@ end
     @param union any -- The intersection of types (or a singleton/primitive) to be flattened.
 ]=]
 type function IntersectionFlatten(input: any)
-    if input:is("intersection") then
+    if _safeIs(input, "intersection") then
         local output = {}
 
         for _,comp in input:components() do
-            if comp:is("intersection") or comp:is("union") then
+            if _safeIs(comp, "intersection") or _safeIs(comp, "union") then
                 local compOutput = IntersectionFlatten(comp)
-                if compOutput:is("intersection") then
+                if _safeIs(compOutput, "intersection") then
                     _tableInsertMany(output, compOutput:components())
                 else
                     table.insert(output, compOutput)
@@ -1258,7 +1627,7 @@ type function IntersectionFlatten(input: any)
 
         return _arrayToIntersection(output)
 
-    elseif input:is("union") then
+    elseif _safeIs(input, "union") then
         return _arrayToUnion(_tableMap(input:components(), IntersectionFlatten))
     end
 
@@ -1273,27 +1642,27 @@ end
     @param inputB any -- the second table to compare.
 ]=]
 type function IntersectionEquals(inputA: any, inputB: any)
-    if inputA:is("union") and inputB:is("intersection") then return types.singleton(false) end
-    if inputB:is("union") and inputA:is("intersection") then return types.singleton(false) end
+    if _safeIs(inputA, "union") and _safeIs(inputB, "intersection") then return types.singleton(false) end
+    if _safeIs(inputB, "union") and _safeIs(inputA, "intersection") then return types.singleton(false) end
 
-    local inputAComponentsLength = inputA:is("intersection") and #inputA:components() or 1
-    local inputBComponentsLength = inputB:is("intersection") and #inputB:components() or 1
+    local inputAComponentsLength = _safeIs(inputA, "intersection") and #inputA:components() or 1
+    local inputBComponentsLength = _safeIs(inputB, "intersection") and #inputB:components() or 1
     if inputAComponentsLength ~= inputBComponentsLength then return types.singleton(false) end
 
     inputA, inputB = IntersectionClean(IntersectionFlatten(inputA)), IntersectionClean(IntersectionFlatten(inputB))
-    local inputAComponents = inputA:is("intersection") and inputA:components() or { inputA }
-    local inputBComponents = inputB:is("intersection") and inputB:components() or { inputB }
+    local inputAComponents = _safeIs(inputA, "intersection") and inputA:components() or { inputA }
+    local inputBComponents = _safeIs(inputB, "intersection") and inputB:components() or { inputB }
 
     local matches = 0
     for _,compA in inputAComponents do
 
         for _,compB in inputBComponents do
-            if _singletonToValue(Equals(compA, compB)) then matches += 1 end
+            if Equals(compA, compB):value() then matches += 1 end
         end
 
     end
 
-    return types.singleton(#inputAComponents == matches and true or false)
+    return types.singleton(if #inputAComponents == matches and #inputBComponents == matches then true else false)
 end
 
 
@@ -1304,8 +1673,8 @@ end
     @param inputB any -- the second intersection.
 ]=]
 type function IntersectionDiff(inputA: any, inputB: any)
-    local inputAComponents = inputA:is("intersection") and inputA:components() or { inputA }
-    local inputBComponents = inputB:is("intersection") and inputB:components() or { inputB }
+    local inputAComponents = _safeIs(inputA, "intersection") and inputA:components() or { inputA }
+    local inputBComponents = _safeIs(inputB, "intersection") and inputB:components() or { inputB }
 
     local output = {}
 
@@ -1330,8 +1699,8 @@ end
     @param inputB any -- the second intersection.
 ]=]
 type function IntersectionOverlap(inputA: any, inputB: any)
-    local inputAComponents = inputA:is("intersection") and inputA:components() or { inputA }
-    local inputBComponents = inputB:is("intersection") and inputB:components() or { inputB }
+    local inputAComponents = _safeIs(inputA, "intersection") and inputA:components() or { inputA }
+    local inputBComponents = _safeIs(inputB, "intersection") and inputB:components() or { inputB }
 
     local output = {}
 
@@ -1352,6 +1721,17 @@ end
 -------------------------------------------------------------------------------------------------------
 
 
+--> Negation ------------------------------------------------------------------------------------------
+type function Negate(input: any)
+    return types.negationof(input)
+end
+
+type function Unnegate(input: any)
+    return _safeIs(input, "negation") and input:inner() or input
+end
+-------------------------------------------------------------------------------------------------------
+
+
 --> Function ------------------------------------------------------------------------------------------
 --[=[
     Removes duplicate types from a functions arguments and return types.
@@ -1359,8 +1739,8 @@ end
     @param input any -- The function to be cleaned.
 ]=]
 type function FunctionClean(input: (...any) -> ...any)
-    if input:is("union") then return _arrayToUnion(_tableMap(UnionFlatten(input):components(), FunctionClean)) end
-    if input:is("intersection") then return _arrayToIntersection(_tableMap(IntersectionFlatten(input):components(), FunctionClean)) end
+    if _safeIs(input, "union") then return _arrayToUnion(_tableMap(UnionFlatten(input):components(), FunctionClean)) end
+    if _safeIs(input, "intersection") then return _arrayToIntersection(_tableMap(IntersectionFlatten(input):components(), FunctionClean)) end
     _assertIs(input, "input", "function")
 
     local function clean(item: any)
@@ -1400,9 +1780,9 @@ end
     @param input (...any) -> ...any -- The function to be flattened.
 ]=]
 type function FunctionFlatten(input: (...any) -> ...any)
-    if input:is("union") then return _arrayToUnion(_tableMap(UnionFlatten(input):components(), FunctionFlatten)) end
-    if input:is("intersection") then return _arrayToIntersection(_tableMap(IntersectionFlatten(input):components(), FunctionFlatten)) end
-    if not input:is("function") then return input end
+    if _safeIs(input, "union") then return _arrayToUnion(_tableMap(UnionFlatten(input):components(), FunctionFlatten)) end
+    if _safeIs(input, "intersection") then return _arrayToIntersection(_tableMap(IntersectionFlatten(input):components(), FunctionFlatten)) end
+    if not _safeIs(input, "function") then return input end
 
     local function flatten(item: any)
         local head, tail = item.head, item.tail
@@ -1442,14 +1822,14 @@ end
     @param inputB (...any) -> ...any -- the second function to compare.
 ]=]
 type function FunctionEquals(inputA: (...any) -> ...any, inputB: (...any) -> ...any)
-    local function equals(itemA: any, itemB: any)
+    local function funcSectEquals(itemA: any, itemB: any)
         if (itemA and not itemB) or (itemB and not itemA) then return false end
         if not itemA and not itemB then return true end
 
         if #itemA ~= #itemB then return false end
 
         for idx, comp in itemA do
-            if not _singletonToValue(Equals(comp, itemB[idx])) then return false end
+            if not Equals(comp, itemB[idx]):value() then return false end
         end
 
         return true
@@ -1458,11 +1838,15 @@ type function FunctionEquals(inputA: (...any) -> ...any, inputB: (...any) -> ...
     local argsA, argsB = inputA:parameters(), inputB:parameters()
     local returnsA, returnsB = inputA:returns(), inputB:returns()
 
+    -- Returns true only if both the function arguments and return types are equal.
     return types.singleton(
-        equals(argsA and argsA.head, argsB and argsB.head) and 
-        _singletonToValue(Equals(argsA and argsA.tail, argsB and argsB.tail)) and
-        equals(returnsA and returnsA.head, returnsB and returnsB.head) and
-        _singletonToValue(Equals(returnsA and returnsA.tail, returnsB and returnsB.tail))
+        -- Checks if arguments are equal.
+        funcSectEquals(argsA and argsA.head, argsB and argsB.head) and 
+        Equals(argsA and argsA.tail, argsB and argsB.tail):value() and
+
+        -- Checks if the return types are equal.
+        funcSectEquals(returnsA and returnsA.head, returnsB and returnsB.head) and
+        Equals(returnsA and returnsA.tail, returnsB and returnsB.tail):value()
     )
 end
 
@@ -1605,10 +1989,10 @@ end
     @param input string -- The string to convert to camel case.
 ]=]
 type function StringToCamel(input: string)
-    if input:is("union") then return _arrayToUnion(_tableMap(input:components(), StringToCamel)) end
-    if input:is("intersection") then return _arrayToIntersection(_tableMap(input:components(), StringToCamel)) end
+    if _safeIs(input, "union") then return _arrayToUnion(_tableMap(input:components(), StringToCamel)) end
+    if _safeIs(input, "intersection") then return _arrayToIntersection(_tableMap(input:components(), StringToCamel)) end
 
-    input = _singletonToValue(input)
+    input = _safeValue(input)
     if typeof(input) ~= "string" then return input end
 
     return _toCamel(input)
@@ -1621,10 +2005,10 @@ end
     @param input string -- The string to convert to pascal case.
 ]=]
 type function StringToPascal(input: string)
-    if input:is("union") then return _arrayToUnion(_tableMap(input:components(), StringToPascal)) end
-    if input:is("intersection") then return _arrayToIntersection(_tableMap(input:components(), StringToPascal)) end
+    if _safeIs(input, "union") then return _arrayToUnion(_tableMap(input:components(), StringToPascal)) end
+    if _safeIs(input, "intersection") then return _arrayToIntersection(_tableMap(input:components(), StringToPascal)) end
 
-    input = _singletonToValue(input)
+    input = _safeValue(input)
     if typeof(input) ~= "string" then return input end
 
     return _toPascal(input)
@@ -1637,10 +2021,10 @@ end
     @param input string -- The string to convert to upper case.
 ]=]
 type function StringToUpper(input: string)
-    if input:is("union") then return _arrayToUnion(_tableMap(input:components(), StringToUpper)) end
-    if input:is("intersection") then return _arrayToIntersection(_tableMap(input:components(), StringToUpper)) end
+    if _safeIs(input, "union") then return _arrayToUnion(_tableMap(input:components(), StringToUpper)) end
+    if _safeIs(input, "intersection") then return _arrayToIntersection(_tableMap(input:components(), StringToUpper)) end
 
-    input = _singletonToValue(input)
+    input = _safeValue(input)
     if typeof(input) ~= "string" then return input end
 
     return _toUpper(input)
@@ -1653,10 +2037,10 @@ end
     @param input string -- The string to convert to lower case.
 ]=]
 type function StringToLower(input: string)
-    if input:is("union") then return _arrayToUnion(_tableMap(input:components(), StringToLower)) end
-    if input:is("intersection") then return _arrayToIntersection(_tableMap(input:components(), StringToLower)) end
+    if _safeIs(input, "union") then return _arrayToUnion(_tableMap(input:components(), StringToLower)) end
+    if _safeIs(input, "intersection") then return _arrayToIntersection(_tableMap(input:components(), StringToLower)) end
 
-    input = _singletonToValue(input)
+    input = _safeValue(input)
     if typeof(input) ~= "string" then return input end
 
     return _toLower(input)
@@ -1671,17 +2055,18 @@ end
     @param replacement string -- The replacement string.
 ]=]
 type function StringReplace(input: string, pattern: string, replacement: string)
-    if input:is("union") then
+    if _safeIs(input, "union") then
         return _arrayToUnion(_tableMap(input:components(), function(comp) return StringReplace(comp, pattern, replacement) end))
     end
-    if input:is("intersection") then
+    if _safeIs(input, "intersection") then
         return _arrayToIntersection(_tableMap(input:components(), function(comp) return StringReplace(comp, pattern, replacement) end))
     end
 
-    input, pattern, replacement = _singletonToValue(input), _singletonToValue(pattern), _singletonToValue(replacement)
-    assert(typeof(input) == "string", _assertIsMessage("input", "string"))
-    assert(typeof(pattern) == "string", _assertIsMessage("pattern", "string"))
-    assert(typeof(replacement) == "string", _assertIsMessage("replacement", "string"))
+    _assertIs(input, "string")
+    _assertIs(pattern, "string")
+    _assertIs(replacement, "string")
+
+    input, pattern, replacement = _safeValue(input), _safeValue(pattern), _safeValue(replacement)
 
     return types.singleton(string.gsub(input, pattern, replacement))
 end
@@ -1693,6 +2078,8 @@ end
     @param input { [`{number}`]: string } -- The string table to join together.
 ]=]
 type function StringJoin(input: { [any]: string })
+    _assertIs(input, "string")
+
     local inputArr = {}
 
     for key, value in input:properties() do
@@ -1704,7 +2091,7 @@ type function StringJoin(input: { [any]: string })
     local output = ""
 
     for _,value in inputArr do
-        value = _singletonToValue(value)
+        value = _safeValue(value)
         if typeof(value) ~= "string" then continue end
         output ..= value
     end
@@ -1720,16 +2107,17 @@ end
     @param splitAt string -- The string to split at.
 ]=]
 type function StringSplit(input: string, splitAt: string)
-    if input:is("union") then
+    if _safeIs(input, "union") then
         return _arrayToUnion(_tableMap(input:components(), function(comp) return StringSplit(comp, splitAt) end))
     end
-    if input:is("intersection") then
+    if _safeIs(input, "intersection") then
         return _arrayToIntersection(_tableMap(input:components(), function(comp) return StringSplit(comp, splitAt) end))
     end
 
-    input, splitAt = _singletonToValue(input), _singletonToValue(splitAt)
-    assert(typeof(input) == "string", _assertIsMessage("input", "string"))
-    assert(typeof(splitAt) == "string", _assertIsMessage("splitAt", "string"))
+    _assertIs(input, "input", "string")
+    _assertIs(splitAt, "splitAt", "string")
+
+    input, splitAt = _safeValue(input), _safeValue(splitAt)
 
     local split = string.split(input, splitAt)
 
@@ -1749,10 +2137,12 @@ end
     @param at `{number}` -- The position to get character at.
 ]=]
 type function StringAt(input: string, at: string)
-    at = tonumber(_singletonToValue(at))
+    _assertIs(input, "input", "string")
+
+    at = tonumber(_safeValue(at))
     assert(typeof(at) == "number", "The type argument `at` could not be turned into a number!")
 
-    return types.singleton(string.sub(_singletonToValue(input), at, at))
+    return types.singleton(string.sub(_safeValue(input), at, at))
 end
 
 
@@ -1762,7 +2152,34 @@ end
     @param input string -- The string to get the length of.
 ]=]
 type function StringLength(input: string)
-    return types.singleton(tostring(#_singletonToValue(input)))
+    _assertIs(input, "input", "string")
+
+    return types.singleton(tostring(#_safeValue(input)))
+end
+
+
+--[=[
+    Returns true if the input string is of the required length.
+
+    @param input string -- The string to test the length of.
+    @param length `{number}` -- The expected length of the string.
+]=]
+type function StringIsLength(input: string, length: number)
+    _assertIs(input, "input", "string")
+
+    return types.singleton(#_safeValue(input) == tonumber(_safeValue(length)))
+end
+
+
+--[=[
+    Returns true if the string is empty.
+
+    @param input string -- The string to test emptiness for.
+]=]
+type function StringIsEmpty(input: string)
+    _assertIs(input, "input", "string")
+
+    return types.singleton(_safeValue(input) == "")
 end
 
 
@@ -1772,7 +2189,9 @@ end
     @param input string -- The string to test to see if its a string literal.
 ]=]
 type function StringIsLiteral(input: string)
-    return types.singleton(if typeof(_singletonToValue(input)) == "string" then true else false)
+    _assertIs(input, "input", "string")
+
+    return types.singleton(if typeof(_safeValue(input)) == "string" then true else false)
 end
 -------------------------------------------------------------------------------------------------------
 
@@ -1784,13 +2203,13 @@ end
     @param input any -- The type you wish to perform a `Not` operation on.
 ]=]
 type function Not(input: any)
-    if input:is("never") or input:is("unknown") then
+    if _safeIs(input, "never") or _safeIs(input, "unknown") then
         return types.singleton(false)
 
-    elseif input:is("singleton") then
+    elseif _safeIs(input, "singleton") then
         return types.singleton(not input:value())
 
-    elseif input:is("union") then
+    elseif _safeIs(input, "union") then
         local output
 
         for _,comp in input:components() do
@@ -1812,15 +2231,15 @@ end
     @param input any -- The type you wish to perform an `And` operation on.
 ]=]
 type function And(input: any)
-    if input:is("never") or input:is("unknown") then
+    if _safeIs(input, "never") or _safeIs(input, "unknown") then
         return types.singleton(false)
 
-    elseif input:is("singleton") then
+    elseif _safeIs(input, "singleton") then
         return types.singleton(input:value() and true or false)
     
-    elseif input:is("union") then
+    elseif _safeIs(input, "union") then
         for _,comp in input:components() do
-            if comp:is("never") or comp:is("unknown") or (not comp:value()) then return types.singleton(false) end
+            if _safeIs(comp, "never") or _safeIs(comp, "unknown") or (not comp:value()) then return types.singleton(false) end
         end
 
         return types.singleton(true)
@@ -1836,15 +2255,15 @@ end
     @param input any -- The union/singleton you wish to perform an `Or` operation on.
 ]=]
 type function Or(input: any)
-    if input:is("never") or input:is("unknown") then
+    if _safeIs(input, "never") or _safeIs(input, "unknown") then
         return types.singleton(false)
 
-    elseif input:is("singleton") then
+    elseif _safeIs(input, "singleton") then
         return types.singleton(input:value() and true or false)
     
-    elseif input:is("union") then
+    elseif _safeIs(input, "union") then
         for _,comp in input:components() do
-            if comp:is("never") or comp:is("unknown") then continue end
+            if _safeIs(comp, "never") or _safeIs(comp, "unknown") then continue end
             if comp:value() then return types.singleton(true) end
         end
 
@@ -1867,7 +2286,6 @@ type function Extends(input: any, extends: any)
     input, extends = Clean(Flatten(input)), Clean(Flatten(extends))
 
     local function doesExtendBase(inputItem: any, extendsItem: any)
-
         if _safeIs(inputItem, "table") and _safeIs(extendsItem, "table") then
             if _tableExtendsTable(TablePick(inputItem, _keyof(extendsItem)), extendsItem) then return true end
 
@@ -1876,28 +2294,28 @@ type function Extends(input: any, extends: any)
 
             if typeof(inputItem) == _typeToValue(extendsItem) then return true end
 
-            if _singletonToValue(Equals(inputItem, extendsItem)) then return true end
+            if Equals(inputItem, extendsItem):value() then return true end
         end
 
         return false
     end
 
     local doesExtend
-    if extends:is("union") or extends:is("intersection") then
+    if _safeIs(extends, "union") or _safeIs(extends, "intersection") then
         local extendsComponents = _arraySingletonsToValues(extends:components())
         doesExtend = function(item: any)
             for _,comp in extendsComponents do
-                if doesExtendBase(_singletonToValue(item), comp) then return true end
+                if doesExtendBase(_safeValue(item), comp) then return true end
             end
             return false
         end
 
     else
-        doesExtend = function(item: any) return doesExtendBase(_singletonToValue(item), _singletonToValue(extends)) end
+        doesExtend = function(item: any) return doesExtendBase(_safeValue(item), _safeValue(extends)) end
     end
 
 
-    if input:is("union") or input:is("intersection") then
+    if _safeIs(input, "union") or _safeIs(input, "intersection") then
         for _,comp in input:components() do
             if not doesExtend(comp) then return types.singleton(false) end
         end
@@ -1915,7 +2333,7 @@ end
 ]=]
 type function Compare(input: any, compareTo: any)
     return types.singleton(
-        typeof(_singletonToValue(input)) == typeof(_singletonToValue(compareTo)) or 
+        typeof(_safeValue(input)) == typeof(_safeValue(compareTo)) or 
         (input == compareTo))
 end
 
@@ -1928,7 +2346,7 @@ end
     @param ifFalsy any -- The type to output if `input` is falsey.
 ]=]
 type function Condition(input: any, ifTruthy: any, ifFalsy: any)
-    return if _singletonToValue(input) then ifTruthy else ifFalsy
+    return if _safeValue(input) then ifTruthy else ifFalsy
 end
 -------------------------------------------------------------------------------------------------------
 
@@ -1941,7 +2359,7 @@ end
     @param toBe any -- The type you want to compare `expect` to.
 ]=]
 type function Expect(expect: any, toBe: any)
-    if not _singletonToValue(Equals(expect, toBe)) then
+    if not Equals(expect, toBe):value() then
         return error("expection error!")
     end
 
@@ -1955,7 +2373,7 @@ end
     @param input any -- The type to be inspected.
 ]=]
 type function Inspect(input: any)
-    local isUnion, isIntersection = input:is("union"), input:is("intersection")
+    local isUnion, isIntersection = _safeIs(input, "union"), _safeIs(input, "intersection")
     if not isUnion and not isIntersection then return input end
 
     local output = types.newtable({
@@ -1965,12 +2383,13 @@ type function Inspect(input: any)
     for idx, comp in input:components() do
         output:setproperty(
             types.singleton(`{idx}`),
-            if comp:is("union") or comp:is("intersection") then Inspect(comp) else comp
+            if _safeIs(comp, "union") or _safeIs(comp, "intersection") then Inspect(comp) else comp
         )
     end
 
     return output
 end
+
 -------------------------------------------------------------------------------------------------------
 
 
@@ -2031,6 +2450,18 @@ type TablePick_TestF = Expect<
     TablePick<{ [string | "hello" | "lol" | "Age"]: any, Name: string, Age: number }, "Age">,
     SetIndexer<{ Age: number }, "Age", any>
 >
+
+-- Test G: Picking a property from an intersection of two tables.
+type TablePick_TestG = Expect<
+    TablePick<{ hello: "world" } & { foo: "bar" }, "hello">,
+    { hello: "world" } & { }
+>
+
+-- Test H: Picking 2 properties from an intersection of two tables where each component to be picked exists in a different table.
+type TablePick_TestH = Expect<
+    TablePick<{ hello: "world" } & { foo: "bar" }, "hello" | "foo">,
+    { hello: "world" } & { foo: "bar" }
+>
 ------------------------------------------------------
 
 
@@ -2065,10 +2496,22 @@ type TableOmit_TestE = Expect<
     SetIndexer<{}, "lol", any>
 >
 
--- Test F: Picking a property and indexer of the same string literal.
+-- Test F: Omitting a property and indexer of the same string literal.
 type TableOmit_TestF = Expect<
     TableOmit<{ [string | "hello" | "lol" | "Age"]: any, Name: string, Age: number }, "Age">,
     SetIndexer<{ Name: string }, string | "hello" | "lol", any>
+>
+
+-- Test G: Omitting a property from an intersection of two tables.
+type TableOmit_TestG = Expect<
+    TableOmit<{ hello: "world" } & { foo: "bar" }, "hello">,
+    { } & { foo: "bar" }
+>
+
+-- Test H: Omitting 2 properties from an intersection of two tables where each component to be omitted exists in a different table.
+type TableOmit_TestH = Expect<
+    TableOmit<{ hello: "world" } & { foo: "bar" }, "hello" | "foo">,
+    {  } & { }
 >
 ------------------------------------------------------
 
@@ -2401,6 +2844,15 @@ type UnionOmit_TestD = Expect<
 -------------------------------------------------------
 
 
+-- UnionClean -----------------------------------------
+-- Cleans an intersection of unions.
+type UnionClean_TestA = Expect<
+    UnionClean<(("hello" | "hello" | "lol") & ("bob" | "hai" | "hai"))>,
+    (("hello" | "lol") & ("bob" | "hai"))
+>
+-------------------------------------------------------
+
+
 -- UnionFlatten ---------------------------------------
 -- TestA: Flattens a union.
 type UnionFlatten_TestA = Expect<
@@ -2408,6 +2860,14 @@ type UnionFlatten_TestA = Expect<
     string | "foo" | number | "bar"
 >
 -------------------------------------------------------
+-------------------------------------------------------------------------------------------------------
+
+
+--> Intersection --------------------------------------------------------------------------------------
+type IntersectionFlatten_TestA = Expect<
+    IntersectionClean<(("hello" & "hello" & "lol") | ("bob" & "hai" & "hai"))>,
+    (("hello" & "lol") | ("bob" & "hai"))
+>
 -------------------------------------------------------------------------------------------------------
 
 
@@ -2689,34 +3149,53 @@ type Extends_TestS = Expect<Extends<{ hello: "world" } | string, {}>, false>
 -- TestT: Tests to see if a union of a table with properties and string extends a union of an empty table and a string.
 type Extends_TestT = Expect<Extends<{ hello: "world" } | string, {} | string>, true>
 
--- TestT: Tests to see if a table with properties extends a table with properties taken from that first table.
+-- TestU: Tests to see if a table with properties extends a table with properties taken from that first table.
 type Extends_TestU = Expect<Extends<{ hello: "world", foo: "bar" }, { hello: "world" }>, true>
 
--- TestV: Tests to see if a table with properties extends a table with properties taken from that first table.
-type Extends_TestV = Expect<Extends<{ hello: "world", foo: "bar" }, { hello: "world" }>, true>
+-- TestV: Tests to see if a union of a table with properties and string extends a table with properties taken from that first table.
+type Extends_TestV = Expect<Extends<{ hello: "world", foo: "bar" } | string, { hello: "world" }>, false>
 
--- TestW: Tests to see if a union of a table with properties and string extends a table with properties taken from that first table.
-type Extends_TestW = Expect<Extends<{ hello: "world", foo: "bar" } | string, { hello: "world" }>, false>
+-- TestW: Tests to see if a table with properties extends a table with properties taken from that first table as well as extra properties.
+type Extends_TestW = Expect<Extends<{ hello: "world" }, { hello: "world", foo: "bar" }>, false>
 
--- TestX: Tests to see if a table with properties extends a table with properties taken from that first table as well as extra properties.
-type Extends_TestX = Expect<Extends<{ hello: "world" }, { hello: "world", foo: "bar" }>, false>
-
--- TestY: Tests to see if a union of a table with properties and string extends
+-- TestX: Tests to see if a union of a table with properties and string extends
 -- a table with properties taken from that first table as well as extra properties.
-type Extends_TestY = Expect<Extends<{ hello: "world" } | string, { hello: "world", foo: "bar" }>, false>
+type Extends_TestX = Expect<Extends<{ hello: "world" } | string, { hello: "world", foo: "bar" }>, false>
 
+-- TestY: Tests to see if a table with properties extends a union of a table with properties taken from that first table and string.
+type Extends_TestY = Expect<Extends<{ hello: "world", foo: "bar" }, { hello: "world" } | string>, true>
 
--- TestZ: Tests to see if a table with properties extends a union of a table with properties taken from that first table and string.
-type Extends_TestZ = Expect<Extends<{ hello: "world", foo: "bar" }, { hello: "world" } | string>, true>
-
-
--- TestZA: Tests to see if a table with property whos value is a string literal
+-- TestZ: Tests to see if a table with property whos value is a string literal
 -- extends a table with the same property but with a different string literal.
-type Extends_TestZA = Expect<Extends<{ kind: "Customer" }, { kind: "Employee" }>, false>
--------------------------------------------------------
+type Extends_TestZ = Expect<Extends<{ kind: "Customer" }, { kind: "Employee" }>, false>
 
--- TestZB: Tests to see if a table with property whos value is a
+-- TestAA: Tests to see if a table with property whos value is a
 -- string literal extends a table with the same property.
-type Extends_TestZB = Expect<Extends<{ kind: "Customer" }, { kind: "Customer" }>, true>
+type Extends_TestAA = Expect<Extends<{ kind: "Customer" }, { kind: "Customer" }>, true>
+
+-- TestAB: Tests to see if a table extends a table with a nil property.
+type Extends_TestAB = Expect<Extends<{ }, { foo: nil }>, true>
+
+-- TestAC: Tests to see if a table extends a table with a nillable property.
+type Extends_TestAC = Expect<Extends<{ }, { foo: string? }>, true>
+
+-- TestAD: Tests to see if a table with a nilable property extends a table with the same nillable property
+type Extends_TestAD = Expect<Extends<{ foo: string? }, { foo: string? }>, true>
+
+-- TestAE: Tests to see if a table with a nilable property extends a table with the same nillable property but with different value.
+type Extends_TestAE = Expect<Extends<{ foo: string? }, { foo: number? }>, false>
+
+-- TestAF: Tests to see if a non-empty table extends an empty table.
+type Extends_TestAF = Expect<Extends<{ foo: string }, { }>, true>
+
+-- TestAG: Tests to see if an empty table extends a non-empty table.
+type Extends_TestAG = Expect<Extends<{ }, { foo: string }>, false>
+
+-- TestAH: Tests to see if a table with a string literal prop extends table with a nilable string primative prop.
+type Extends_TestAH = Expect<Extends<{ hello: "hello" }, { hello: string? }>, true>
+
+-- TestAI: Tests to see if a table with a nilable string literal prop extends table with a string primative prop.
+type Extends_TestAI = Expect<Extends<{ hello: "hello"? }, { hello: string }>, false>
 -------------------------------------------------------
 -------------------------------------------------------------------------------------------------------
+
