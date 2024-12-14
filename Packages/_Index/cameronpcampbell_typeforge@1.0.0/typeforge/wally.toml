@@ -1,7 +1,7 @@
 [package]
 name = "cameronpcampbell/typeforge"
 description="90+ utility user-defined type functions for luau."
-version = "1.0.1"
+version = "1.0.0"
 registry = "https://github.com/UpliftGames/wally-index"
 realm = "shared"
 license = "MIT"

@@ -3198,5 +3198,3 @@ type Extends_TestAH = Expect<Extends<{ hello: "hello" }, { hello: string? }>, tr
 type Extends_TestAI = Expect<Extends<{ hello: "hello"? }, { hello: string }>, false>
 -------------------------------------------------------
 -------------------------------------------------------------------------------------------------------
-
-return nil
