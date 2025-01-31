@@ -165,27 +165,22 @@ end
 
 
 type function _combineToUnion(one: any?, two: any?)
-    if one == types.never then one = nil end
-    if two == types.never then two = nil end
-
-    if not one and not two then return types.never end
-    if one and not two then return one end
-    if two and not one then return two end
+    if one == nil and two == nil then return types.never end
+    if one == types.unknown or two == types.unknown then return types.unknown end
+    if one == types.never or one == nil then return two end
+    if two == types.never or two == nil then return one end
 
     return types.unionof(one, two)
 end
 
 type function _combineToIntersection(one: any?, two: any?)
-    if one == types.never then one = nil end
-    if two == types.never then two = nil end
-
-    if not one and not two then return types.never end
-    if one and not two then return one end
-    if two and not one then return two end
+    if one == nil and two == nil then return types.unknown end
+    if one == types.never or two == types.never then return types.never end
+    if one == types.unknown or one == nil then return two end
+    if two == types.unknown or two == nil then return one end
 
     return types.intersectionof(one, two)
 end
-
 
 type function _toPartial(input: any)
     return _combineToUnion(input, types.singleton(nil))
