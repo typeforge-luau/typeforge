@@ -166,8 +166,9 @@ end
 
 type function _combineToUnion(one: any?, two: any?)
     if one == nil and two == nil then return types.never end
-    if one == types.unknown or one == types.never or one == nil then return two end
-    if two == types.unknown or two == types.never or two == nil then return one end
+    if one == types.unknown or two == types.unknown then return types.unknown end
+    if one == types.never or one == nil then return two end
+    if two == types.never or two == nil then return one end
 
     return types.unionof(one, two)
 end
