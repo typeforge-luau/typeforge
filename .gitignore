@@ -5,7 +5,9 @@
 /*.rbxlx.lock
 /*.rbxl.lock
 
+# MacOS file system clutter.
 ._*
+.DS_STORE
 
 /*.git
 

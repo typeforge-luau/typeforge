@@ -1,6 +1,5 @@
 --!strict
 
-
 --[[
 MIT License
 
@@ -34,7 +33,6 @@ end
 type function _assertIsMessage(argName: string, toAssert: string)
     return `Expected the type argument \`{argName}\` to be of type \`{toAssert}\``
 end
-
 
 type function _safeIs(input: any, isType: any)
     if typeof(input) ~= "userdata" then return false end
@@ -706,16 +704,17 @@ export type function TableFlatten(input: any)
         output:setindexer(outputIndexer.index, outputIndexer.writeresult or outputIndexer.readresult)
     end
 
-    return Omit(_combineToIntersection(
-        if #options ~= 0 then
-            _arrayToUnion(_tableMap(options, function(option)
-                return TableFlatten(_combineToIntersection(output, option))
-            end))
+    if #options ~= 0 then
+        output = _arrayToUnion(_tableMap(options, function(option)
+            return TableFlatten(_combineToIntersection(output, option))
+        end))
+    end
 
-        else output, 
+    if #extra ~= 0 then
+        output = _combineToIntersection(output, _arrayToIntersection(extra))
+    end
 
-        _arrayToIntersection(extra)
-    ), types.newtable())
+    return output
 end
 
 --[=[
