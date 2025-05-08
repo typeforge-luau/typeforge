@@ -5,7 +5,7 @@
 /*.rbxlx.lock
 /*.rbxl.lock
 
-# MacOS file system clutter.
+# MacOS file system junk.
 ._*
 .DS_STORE
 
@@ -16,3 +16,5 @@
 /*.rbxm
 
 /.vscode
+
+/sourcemap.json
