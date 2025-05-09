@@ -384,7 +384,7 @@ type function hashset_insert(
     hashset: typeof(types.newtable()),
     non_hashsettable: { [number]: type },
     input: type
-)
+)   
     if hashset_can_insert(input) then
         hashset:setproperty(input, types.never)
     
@@ -399,7 +399,7 @@ type function hashset_has_type(
     input: type
 )
     if hashset_can_insert(input) then
-        return hashset:readproperty(input) and true or false
+        return if hashset:readproperty(input) then true else false
 
     else
         for _, component in non_hashsettable do
@@ -416,7 +416,7 @@ type function hashset_from_components(input: { [number]: type })
     local hashset, non_hashsettable = types.newtable(), {}
 
     for _, value in input do
-        hashset_insert(hashset, non_hashsettable, input)
+        hashset_insert(hashset, non_hashsettable, value)
     end
 
     return hashset, non_hashsettable
@@ -425,14 +425,30 @@ end
 
 --> Components Helpers -----------------------------------------------------------------
 type function components_filter(
-    input: { [number]: type }, callback: (component: type) -> boolean
+    input: { [number]: type },
+    as: "union" | "intersection",
+    as_builder: (components: { [number]: type }) -> (typeof(types.unionof()) | typeof(types.intersectionof())),
+    callback: (component: type) -> boolean
 )
     local input_len = #input
 
     for idx = input_len, 1, -1 do
-        if not callback(input[idx]) then continue end
+        local component = input[idx]
 
-        input_len = table_swap_remove(input, input_len, idx)
+        if component.tag == as then
+            local filtered = as_builder(components_filter(component:components(), as, as_builder, callback))
+
+            if filtered == nil then
+                input_len = table_swap_remove(input, input_len, idx)
+            else
+                input[idx] = filtered
+            end
+
+        else
+            if not callback(component) then continue end
+
+            input_len = table_swap_remove(input, input_len, idx)
+        end
     end
 
     return input
@@ -508,7 +524,7 @@ end
 
 type function union_filter(input: type, callback: (component: type) -> boolean)
     if input.tag == "union" then
-        return union_from_components(components_filter(input:components(), callback))
+        return union_from_components(components_filter(input:components(), "union", union_from_components, callback))
     else
         return if callback(input) then nil else input
     end
@@ -523,7 +539,7 @@ end
 
 type function intersection_filter(input: type, callback: (component: type) -> boolean)
     if input.tag == "intersection" then
-        return intersection_from_components(components_filter(input:components(), callback))
+        return intersection_from_components(components_filter(input:components(), "intersection", intersection_from_components, callback))
     else
         return if callback(input) then nil else input
     end
@@ -697,7 +713,7 @@ export type function Omit(input: type, to_omit: type)
 
     return
         if tag == "intersection" then OmitIntersection(input, to_omit)
-        elseif tag == "table" then OmitTable(input, to_omit)
+        elseif tag == "table" then OmitTableByKeys(input, to_omit)
         else OmitUnion(input, to_omit)
 end
 
@@ -1769,7 +1785,6 @@ type function Stringify(input: type)
     return stringify_main(input, 1)
 end
 ----------------------------------------------------------------------------------------
-
 
 --[[
     MIT License
