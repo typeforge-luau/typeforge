@@ -201,7 +201,10 @@ type function stringify_preview(input: type)
     return `\n> {string.gsub(Stringify(input), "\n", "\n> ")}`
 end
 
-type function stringify_table_type(input: typeof(types.singleton(nil)), nestedness: number)
+type function stringify_table_type(
+    input: typeof(types.singleton(nil)), nestedness: number,
+    pre_padding: string?, post_padding: string?
+)
     local properties = input:properties()
     local indexer = input:indexer()
 
@@ -212,26 +215,26 @@ type function stringify_table_type(input: typeof(types.singleton(nil)), nestedne
     local outer_padding = string.rep("   ", nestedness - 1)
     local padding = outer_padding .. "    "
 
-    local stringified = `{outer_padding}\{`
+    local stringified = `{pre_padding or outer_padding}\{`
 
     for key, value in properties do
         local key_value = if key.tag == "singleton" then key:value() else input
 
-        local stringifiedkey =
+        local stringified_key =
             if type(key_value) == "string" then key_value
-            else `[{stringify_main(key, next_nestedness)}]`
+            else `[{stringify_main(key, next_nestedness, "", padding)}]`
 
         local value_read, value_write = value.read, value.write
 
         if value_read == value_write then
-            stringified ..= `\n{padding}{stringifiedkey}: {stringify_main(value_read, next_nestedness)}`
+            stringified ..= `\n{padding}{stringified_key}: {stringify_main(value_read, next_nestedness)}`
 
         else
             if value_read then
-                stringified ..= `\n{padding}read {stringifiedkey}: {stringify_main(value_read, next_nestedness)}`
+                stringified ..= `\n{padding}read {stringified_key}: {stringify_main(value_read, next_nestedness)}`
             end
             if value_write then
-                stringified ..= `\n{padding}read {stringifiedkey}: {stringify_main(value_write, next_nestedness)}`
+                stringified ..= `\n{padding}write {stringified_key}: {stringify_main(value_write, next_nestedness)}`
             end
         end
     end
@@ -243,12 +246,12 @@ type function stringify_table_type(input: typeof(types.singleton(nil)), nestedne
 
         local stringified_indexer_index =
             if type(indexer_index_value) == "string" then indexer_index_value
-            else `[{stringify_main(indexer_index, next_nestedness)}]`
+            else `[{stringify_main(indexer_index, next_nestedness, "", padding)}]`
 
         stringified ..= `\n{padding}{stringified_indexer_index}: {stringify_main(indexer.readresult, next_nestedness)}`
     end
 
-    return stringified .. `\n{outer_padding}}`
+    return stringified .. `\n{post_padding or outer_padding}}`
 end
 
 type function stringify_components(
@@ -342,7 +345,10 @@ type function stringify_function(input: typeof(types.newfunction()))
     return `({stringified_args}) -> {stringified_returns}`
 end
 
-type function stringify_main(input: type, nestedness: number)
+type function stringify_main(
+    input: type, nestedness: number,
+    pre_padding: string?, post_padding: string?
+)
     local input_tag = input.tag
 
     if input_tag == "negation" then
@@ -357,7 +363,7 @@ type function stringify_main(input: type, nestedness: number)
 
     if input_tag == "union" then return stringify_components(input:components(), " | ")
     elseif input_tag == "intersection" then return stringify_components(input:components(), " & ")
-    elseif input_tag == "table" then return stringify_table_type(input, 1)
+    elseif input_tag == "table" then return stringify_table_type(input, nestedness, pre_padding, post_padding)
     elseif input_tag == "function" then return stringify_function(input)
     elseif input_tag == "unknown" then return "unknown"
     elseif input_tag == "never" then return "never"
