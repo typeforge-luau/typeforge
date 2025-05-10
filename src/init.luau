@@ -203,7 +203,9 @@ end
 
 type function stringify_table_type(input: typeof(types.singleton(nil)), nestedness: number)
     local properties = input:properties()
-    if table_is_empty(properties) then return "{}" end
+    local indexer = input:indexer()
+
+    if table_type_is_empty(properties, indexer) then return "{}" end
 
     local next_nestedness = nestedness + 1
 
@@ -235,16 +237,15 @@ type function stringify_table_type(input: typeof(types.singleton(nil)), nestedne
     end
 
     -- TODO: add support for read and write indexers when available.
-    local indexer = input:indexer()
     if indexer then
         local indexer_index = indexer.index
         local indexer_index_value = if indexer_index.tag == "singleton" then indexer_index:value() else input
 
-        local stringifiedindexer_index =
+        local stringified_indexer_index =
             if type(indexer_index_value) == "string" then indexer_index_value
             else `[{stringify_main(indexer_index, next_nestedness)}]`
 
-        stringified ..= `\n{padding}{stringifiedindexer_index}: {stringify_main(indexer.readresult, next_nestedness)}`
+        stringified ..= `\n{padding}{stringified_indexer_index}: {stringify_main(indexer.readresult, next_nestedness)}`
     end
 
     return stringified .. `\n{outer_padding}}`
@@ -514,6 +515,21 @@ type function components_clean(
 
     return input
 end
+
+type function components_contains(input: { [number]: type }, callback: (component: type) -> boolean)
+    for _, component in input do
+        if not callback(component) then continue end
+        return true
+    end
+
+    return false
+end
+
+type function components_contains_table(input: { [number]: type })
+    return components_contains(input, function(component)
+        return component.tag == "table"
+    end)
+end
 ----------------------------------------------------------------------------------------
 
 --> Union Helpers ----------------------------------------------------------------------
@@ -561,8 +577,10 @@ type function table_swap_remove(input: { [any]: any }, input_len: number, idx: n
     return input_len - 1
 end
 
-type function table_is_empty(input: { [any]: any })
-    for _ in input do return false end
+type function table_type_is_empty(properties: { [any]: any }, indexer: type)
+    if indexer then return false end
+
+    for _ in properties do return false end
     return true
 end
 
@@ -673,13 +691,11 @@ type function table_type_filter(
     local indexer = input:indexer()
     if indexer then
         local indexer_index = indexer.index
-
         local indexer_read_result, indexer_write_result = indexer.readresult, indexer.writeresult
 
         -- If the read and write indexers are identical then we only
         -- need to perform the filter check on one of them.
         if indexer_read_result == indexer_write_result then
-            -- Either the read or write indexer could've been used here.
             if callback(indexer_index, indexer_read_result) then
                 input = table_type_remove_indexer_hacky_fix(input)
                 --input:setindexer(indexer_index, nil)
@@ -689,8 +705,9 @@ type function table_type_filter(
             if callback(indexer_index, indexer_read_result) then
                 input = table_type_remove_read_indexer_hacky_fix(input)
                 -- [[input:setreadindexer(indexer_index, nil)
+            end
 
-            elseif callback(indexer_index, indexer_write_result) then
+            if callback(indexer_index, indexer_write_result) then
                 return table_type_remove_write_indexer_hacky_fix(input)
                 --input:setwriteindexer(indexer_index, nil)
             end
@@ -712,8 +729,15 @@ export type function Omit(input: type, to_omit: type)
     local tag = input.tag
 
     return
-        if tag == "intersection" then OmitIntersection(input, to_omit)
-        elseif tag == "table" then OmitTableByKeys(input, to_omit)
+        if tag == "table" then
+            OmitTableByKeys(input, to_omit)
+
+        elseif tag == "intersection" then
+            if components_contains_table(input:components()) then
+                OmitTableByKeys(input, to_omit)
+            else
+                PickIntersection(input, to_omit)
+
         else OmitUnion(input, to_omit)
 end
 
@@ -727,8 +751,15 @@ export type function Pick(input: type, to_pick: type)
     local tag = input.tag
 
     return
-        if tag == "intersection" then PickIntersection(input, to_pick)
-        elseif tag == "table" then PickTable(input, to_pick)
+        if tag == "table" then
+            PickTable(input, to_pick)
+
+        elseif tag == "intersection" then
+            if components_contains_table(input:components()) then
+                PickTableByKeys(input, to_pick)
+            else
+                PickIntersection(input, to_pick)
+
         else PickUnion(input, to_pick)
 end
 
@@ -761,11 +792,15 @@ export type function Clean(input: type)
             ))
 
         elseif tag == "intersection" then
-            intersection_from_components(unions_and_intersections_clean(
-                input:components(), types.newtable(), {},
-                tag, "union", intersection_from_components,
-                "union", tag, union_from_components
-            ))
+            if components_contains_table(input:components()) then
+                CleanTable(input)
+
+            else
+                intersection_from_components(unions_and_intersections_clean(
+                    input:components(), types.newtable(), {},
+                    tag, "union", intersection_from_components,
+                    "union", tag, union_from_components
+                ))
 
         else input
 end
@@ -838,6 +873,7 @@ export type function CleanUnion(input: type)
         return union_from_components(
             components_clean(input:components(), "union", union_from_components, types.newtable(), {})
         ) or types.never
+
     else
         return input
     end
@@ -856,9 +892,8 @@ export type function OmitIntersection(input: type, to_omit: type)
         return union_from_components(components_map(input:components(), function(component)
             return OmitIntersection(component, to_omit)
         end))
-    end
 
-    if to_omit.tag == "union" then
+    elseif to_omit.tag == "union" then
         local hashset, non_hashsettable = hashset_from_components(to_omit:components())
 
         return intersection_filter(input, function(component): boolean
@@ -883,9 +918,8 @@ export type function PickIntersection(input: type, to_pick: type)
         return union_from_components(components_map(input:components(), function(component)
             return PickIntersection(component, to_pick)
         end))
-    end
 
-    if to_pick.tag == "union" then
+    elseif to_pick.tag == "union" then
         local hashset, non_hashsettable = hashset_from_components(to_pick:components())
 
         return intersection_filter(input, function(component): boolean
@@ -905,7 +939,11 @@ end
     @param input any -- The intersection to flatten.
 ]=]
 export type function FlattenIntersection(input: type)
-    if input.tag == "intersection" then
+    local input_tag = input.tag
+    if input_tag == "union" then
+        return union_from_components(components_map(input:components(), FlattenIntersection)) or types.never
+
+    elseif input.tag == "intersection" then
         return intersection_from_components(components_flatten(input:components(), "intersection")) or types.never
     else
         return input
@@ -919,10 +957,15 @@ end
     @param input any -- The intersection to clean.
 ]=]
 export type function CleanIntersection(input: type)
-    if input.tag == "intersection" then
+    local input_tag = input.tag
+    if input_tag == "union" then
+        return union_from_components(components_map(input:components(), CleanIntersection)) or types.never
+
+    elseif input.tag == "intersection" then
         return intersection_from_components(
             components_clean(input:components(), "intersection", intersection_from_components, types.newtable(), {})
         ) or types.never
+
     else
         return input
     end
@@ -937,8 +980,14 @@ end
     @param to_omit any -- The keys or values of the properties to omit.
 ]=]
 export type function OmitTable(input: typeof(types.newtable()), to_omit: type)
-    if input.tag == "union" then
+    local input_tag = input.tag
+    if input_tag == "union" then
         return union_from_components(components_map(input:components(), function(component)
+            return OmitTable(component, to_omit)
+        end)) or types.never
+
+    elseif input_tag == "intersection" then
+        return intersection_from_components(components_map(input:components(), function(component)
             return OmitTable(component, to_omit)
         end)) or types.never
     end
@@ -1024,8 +1073,14 @@ end
     @param to_omit any -- The values of the properties to omit.
 ]=]
 export type function OmitTableByKeys(input: typeof(types.newtable()), to_omit: type)
-    if input.tag == "union" then
+    local input_tag = input.tag
+    if input_tag == "union" then
         return union_from_components(components_map(input:components(), function(component)
+            return OmitTableByKeys(component, to_omit)
+        end)) or types.never
+
+    elseif input_tag == "intersection" then
+        return intersection_from_components(components_map(input:components(), function(component)
             return OmitTableByKeys(component, to_omit)
         end)) or types.never
     end
@@ -1076,8 +1131,14 @@ end
     @param to_omit any -- The values of the properties to omit.
 ]=]
 export type function OmitTableByValues(input: typeof(types.newtable()), to_omit: type)
-    if input.tag == "union" then
+    local input_tag = input.tag
+    if input_tag == "union" then
         return union_from_components(components_map(input:components(), function(component)
+            return OmitTableByValues(component, to_omit)
+        end)) or types.never
+
+    elseif input_tag == "intersection" then
+        return intersection_from_components(components_map(input:components(), function(component)
             return OmitTableByValues(component, to_omit)
         end)) or types.never
     end
@@ -1128,8 +1189,14 @@ end
     @param to_pick any -- The keys or values of the properties to pick.
 ]=]
 export type function PickTable(input: typeof(types.newtable()), to_pick: type)
-    if input.tag == "union" then
+    local input_tag = input.tag
+    if input_tag == "union" then
         return union_from_components(components_map(input:components(), function(component)
+            return PickTable(component, to_pick)
+        end)) or types.never
+
+    elseif input_tag == "intersection" then
+        return intersection_from_components(components_map(input:components(), function(component)
             return PickTable(component, to_pick)
         end)) or types.never
     end
@@ -1215,8 +1282,14 @@ end
     @param to_pick any -- The keys of the properties to pick.
 ]=]
 export type function PickTableByKeys(input: typeof(types.newtable()), to_pick: type)
-    if input.tag == "union" then
+    local input_tag = input.tag
+    if input_tag == "union" then
         return union_from_components(components_map(input:components(), function(component)
+            return PickTableByKeys(component, to_pick)
+        end)) or types.never
+
+    elseif input_tag == "intersection" then
+        return intersection_from_components(components_map(input:components(), function(component)
             return PickTableByKeys(component, to_pick)
         end)) or types.never
     end
@@ -1267,8 +1340,14 @@ end
     @param to_pick any -- The values of the properties to pick.
 ]=]
 export type function PickTableByValues(input: typeof(types.newtable()), to_pick: type)
-    if input.tag == "union" then
+    local input_tag = input.tag
+    if input_tag == "union" then
         return union_from_components(components_map(input:components(), function(component)
+            return PickTableByValues(component, to_pick)
+        end)) or types.never
+
+    elseif input_tag == "intersection" then
+        return intersection_from_components(components_map(input:components(), function(component)
             return PickTableByValues(component, to_pick)
         end)) or types.never
     end
@@ -1417,7 +1496,12 @@ end
 ]=]
 export type function CleanTable(input: typeof(types.newtable()))
     local input_tag = input.tag
-    if input_tag == "union" then return union_from_components(components_map(input:components(), CleanTable)) or types.never end
+    if input_tag == "union" then
+        return union_from_components(components_map(input:components(), CleanTable)) or types.never
+
+    elseif input_tag == "intersection" then
+        return intersection_from_components(components_map(input:components(), CleanTable)) or types.never
+    end
 
     assert_is(input, "input", input_tag, "table")
 
@@ -1458,7 +1542,12 @@ end
 ]=]
 export type function CleanTableKeys(input: typeof(types.newtable()))
     local input_tag = input.tag
-    if input_tag == "union" then return union_from_components(components_map(input:components(), CleanTableKeys)) or types.never end
+    if input_tag == "union" then
+        return union_from_components(components_map(input:components(), CleanTableKeys)) or types.never
+
+    elseif input_tag == "intersection" then
+        return intersection_from_components(components_map(input:components(), CleanTableKeys)) or types.never
+    end
 
     for key, value in input:properties() do
         local cleaned_key = Clean(key)
@@ -1486,7 +1575,15 @@ end
     @param input { [any]: type } -- The table to clean.
 ]=]
 export type function CleanTableValues(input: typeof(types.newtable()))
-    if input.tag == "union" then return union_from_components(components_map(input:components(), CleanTableValues)) or types.never end
+    local input_tag = input.tag
+    if input_tag == "union" then
+        return union_from_components(components_map(input:components(), CleanTableValues)) or types.never
+
+    elseif input_tag == "intersection" then
+        return intersection_from_components(components_map(input:components(), CleanTableValues)) or types.never
+    end
+
+    assert_is(input, "input", input_tag, "table")
 
     for key, value in input:properties() do
         local value_read, value_write = value.read, value.write
@@ -1518,6 +1615,16 @@ end
     @param input { [any]: type } -- The table to make partial.
 ]=]
 type function Partial(input: typeof(types.newtable()))
+    local input_tag = input.tag
+    if input_tag == "union" then
+        return union_from_components(components_map(input:components(), Partial)) or types.never
+
+    elseif input_tag == "intersection" then
+        return intersection_from_components(components_map(input:components(), Partial)) or types.never
+    end
+
+    assert_is(input, "input", input_tag, "table")
+
     for key, value in input:properties() do
         local value_read, value_write = value.read, value.write
 
@@ -1553,6 +1660,16 @@ end
     @param input { [any]: type } -- The table to make required.
 ]=]
 type function Required(input: typeof(types.newtable()))
+    local input_tag = input.tag
+    if input_tag == "union" then
+        return union_from_components(components_map(input:components(), Required)) or types.never
+
+    elseif input_tag == "intersection" then
+        return intersection_from_components(components_map(input:components(), Required)) or types.never
+    end
+
+    assert_is(input, "input", input_tag, "table")
+
     local nil_singleton = types.singleton("nil")
 
     for key, value in input:properties() do
@@ -1590,6 +1707,16 @@ end
     @param input { [any]: type } -- The table to make read only.
 ]=]
 type function ReadOnly(input: typeof(types.newtable()))
+    local input_tag = input.tag
+    if input_tag == "union" then
+        return union_from_components(components_map(input:components(), ReadOnly)) or types.never
+
+    elseif input_tag == "intersection" then
+        return intersection_from_components(components_map(input:components(), ReadOnly)) or types.never
+    end
+
+    assert_is(input, "input", input_tag, "table")
+
     for key, value in input:properties() do
         if value.write then
             input:setwriteproperty(key, nil)
@@ -1607,6 +1734,16 @@ end
     @param input { [any]: type } -- The table to make read / write.
 ]=]
 type function ReadWrite(input: typeof(types.newtable()))
+    local input_tag = input.tag
+    if input_tag == "union" then
+        return union_from_components(components_map(input:components(), ReadWrite)) or types.never
+
+    elseif input_tag == "intersection" then
+        return intersection_from_components(components_map(input:components(), ReadWrite)) or types.never
+    end
+
+    assert_is(input, "input", input_tag, "table")
+
     for key, value in input:properties() do
         local value_read, value_write = value.read, value.write
 
@@ -1626,6 +1763,16 @@ end
 
 --> Function Types ---------------------------------------------------------------------
 type function FlattenFunction(input: typeof(types.newfunction()))
+    local input_tag = input.tag
+    if input_tag == "union" then
+        return union_from_components(components_map(input:components(), FlattenFunction)) or types.never
+
+    elseif input_tag == "intersection" then
+        return intersection_from_components(components_map(input:components(), FlattenFunction)) or types.never
+    end
+
+    assert_is(input, "input", input_tag, "function")
+
     local input_args = input:parameters()
     local input_args_head, input_args_tail = input_args.head, input_args.tail
 
@@ -1660,6 +1807,16 @@ type function FlattenFunction(input: typeof(types.newfunction()))
 end
 
 type function CleanFunction(input: typeof(types.newfunction()))
+    local input_tag = input.tag
+    if input_tag == "union" then
+        return union_from_components(components_map(input:components(), CleanFunction)) or types.never
+
+    elseif input_tag == "intersection" then
+        return intersection_from_components(components_map(input:components(), CleanFunction)) or types.never
+    end
+
+    assert_is(input, "input", input_tag, "function")
+
     local input_args = input:parameters()
     local input_args_head, input_args_tail = input_args.head, input_args.tail
 
@@ -1694,6 +1851,16 @@ type function CleanFunction(input: typeof(types.newfunction()))
 end
 
 type function Args(input: typeof(types.newfunction()))
+    local input_tag = input.tag
+    if input_tag == "union" then
+        return union_from_components(components_map(input:components(), Args)) or types.never
+
+    elseif input_tag == "intersection" then
+        return intersection_from_components(components_map(input:components(), Args)) or types.never
+    end
+
+    assert_is(input, "input", input_tag, "function")
+
     local input_args = input:parameters()
     local input_args_head, input_args_tail = input_args.head, input_args.tail
 
@@ -1713,6 +1880,16 @@ type function Args(input: typeof(types.newfunction()))
 end
 
 type function Returns(input: typeof(types.newfunction()))
+    local input_tag = input.tag
+    if input_tag == "union" then
+        return union_from_components(components_map(input:components(), Returns)) or types.never
+
+    elseif input_tag == "intersection" then
+        return intersection_from_components(components_map(input:components(), Returns)) or types.never
+    end
+
+    assert_is(input, "input", input_tag, "function")
+
     local input_returns = input:returns()
     local input_returns_head, input_returns_tail = input_returns.head, input_returns.tail
 
@@ -1784,7 +1961,13 @@ end
 type function Stringify(input: type)
     return stringify_main(input, 1)
 end
+
+export type function print(input: type)
+    print(Stringify(input))
+end
 ----------------------------------------------------------------------------------------
+
+return nil
 
 --[[
     MIT License
