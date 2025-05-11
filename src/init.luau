@@ -138,7 +138,7 @@ type function unions_and_intersections_clean(
             if hashset_has_type(hashset, non_hashsettable, component) then
                 input_len = table_swap_remove(input, input_len, idx)
             else
-                hashset_insert(hashset, non_hashsettable, component)
+                hashset_insert(hashset, non_hashsettable, component, component_tag)
             end
         end
     end
@@ -192,6 +192,56 @@ type function is_required(input: type, nil_singleton: typeof(types.singleton(nil
     
     else
         return input == nil_singleton
+    end
+end
+
+-- The equality operator `==` is really strict with unions and intersections,
+-- where the order of their components needs to be the same.
+type function sort_type(input: type)
+    local input_tag = input.tag
+
+    if input_tag == "union" or input_tag == "intersection" then
+        local components = input:components()
+
+        table.sort(components, function(a: type, b: type): boolean
+            local a_tag, b_tag = a.tag, b.tag
+
+            if a_tag ~= b_tag then return a_tag < b_tag end
+            if a_tag ~= "singleton" then return false end
+
+            return (a:value() :: any) < (b:value() :: any)
+        end)
+
+        for idx, component in components do
+            components[idx] = sort_type(component)
+        end
+
+        return (if input_tag == "union" then union_from_components else intersection_from_components)(components)
+
+    elseif input_tag == "table" then
+        for key, value in input:properties() do
+            local value_read, value_write = value.read, value.write
+
+            if value_read == value_write then
+                input:setproperty(key, sort_type(value_read))
+            else
+                input:setreadproperty(key, sort_type(value_read))
+                input:setwriteproperty(key, sort_type(value_write))
+            end
+        end
+
+        local indexer = input:indexer()
+        if indexer then
+            input:setindexer(sort_type(indexer.index), sort_type(indexer.readresult))
+        end
+
+        return input
+
+    elseif input_tag == "negation" then
+        return types.negationof(sort_type(input:inner()))
+
+    else
+        return input
     end
 end
 ----------------------------------------------------------------------------------------
@@ -383,16 +433,17 @@ end
 
 
 --> Hashset Helpers --------------------------------------------------------------------
-type function hashset_can_insert(input: type)
-    return input.tag == "singleton"
+type function hashset_can_insert(input_tag: string)
+    return input_tag == "singleton"
 end
 
 type function hashset_insert(
     hashset: typeof(types.newtable()),
     non_hashsettable: { [number]: type },
-    input: type
+    input: type,
+    input_tag: string
 )   
-    if hashset_can_insert(input) then
+    if hashset_can_insert(input_tag) then
         hashset:setproperty(input, types.never)
     
     else
@@ -403,9 +454,10 @@ end
 type function hashset_has_type(
     hashset: typeof(types.newtable()),
     non_hashsettable: { [number]: type },
-    input: type
+    input: type,
+    input_tag: string
 )
-    if hashset_can_insert(input) then
+    if hashset_can_insert(input_tag) then
         return if hashset:readproperty(input) then true else false
 
     else
@@ -423,7 +475,7 @@ type function hashset_from_components(input: { [number]: type })
     local hashset, non_hashsettable = types.newtable(), {}
 
     for _, value in input do
-        hashset_insert(hashset, non_hashsettable, value)
+        hashset_insert(hashset, non_hashsettable, value, value.tag)
     end
 
     return hashset, non_hashsettable
@@ -500,8 +552,9 @@ type function components_clean(
     local input_len = #input
     for idx = input_len, 1, -1 do
         local component = input[idx]
+        local component_tag = component.tag
         
-        if component.tag == as then
+        if component_tag == as then
             local cleaned = as_builder(components_clean(component:components(), as, as_builder, hashset, non_hashsettable))
 
             if cleaned == nil then
@@ -511,10 +564,10 @@ type function components_clean(
             end
 
         else
-            if hashset_has_type(hashset, non_hashsettable, component) then
+            if hashset_has_type(hashset, non_hashsettable, component, component_tag) then
                 input_len = table_swap_remove(input, input_len, idx)
             else
-                hashset_insert(hashset, non_hashsettable, component)
+                hashset_insert(hashset, non_hashsettable, component, component_tag)
             end
         end
     end
@@ -669,54 +722,263 @@ type function table_type_remove_write_indexer_hacky_fix(input: typeof(types.newt
     return output
 end
 
-type function table_type_filter(
+type function table_type_set_indexer_or_remove(
     input: typeof(types.newtable()),
-    callback: (key: type, value: type?) -> boolean
+    index: type, result: type?
+)
+    if not result then return table_type_remove_indexer_hacky_fix(input)
+    else input:setindexer(index, result) end
+    return input
+end
+
+type function table_type_set_read_indexer_or_remove(
+    input: typeof(types.newtable()),
+    index: type, result: type?
+)
+    if not result then return table_type_remove_read_indexer_hacky_fix(input)
+    else input:setreadindexer(index, result) end
+    return input
+end
+
+type function table_type_set_write_indexer_or_remove(
+    input: typeof(types.newtable()),
+    index: type, result: type?
+)
+    if not result then return table_type_remove_write_indexer_hacky_fix(input)
+    else input:setwriteindexer(index, result) end
+    return input
+end
+
+type function table_type_filter_process_value(
+    input: typeof(types.newtable()),
+    key: type,
+    value: type,
+    value_callback: (value: type) -> boolean,
+    setter_method: (input: typeof(types.newtable()), key: type, value: type?) -> nil
+)
+    local value_tag = (value :: type).tag
+    if value_tag == "union" then
+        local value = union_from_components(components_filter(value, "union", union_from_components, value_callback))
+        setter_method(input, key, value)
+
+    elseif value_tag == "intersection" then
+        local value = intersection_from_components(
+            components_filter(value, "intersection", intersection_from_components, value_callback)
+        )
+        setter_method(input, key, value)
+
+    elseif value_callback(value :: type) then
+        setter_method(input, key, nil)
+    end
+end
+
+type function table_type_filter_process_indexer_result(
+    input: typeof(types.newtable()),
+    key: type,
+    value: type,
+    value_callback: (value: type) -> boolean,
+    setter_method: (input: typeof(types.newtable()), key: type, value: type?) -> nil,
+    key_updated: boolean
+)
+    local value_tag = (value :: type).tag
+    if value_tag == "union" then
+        local value = union_from_components(components_filter(value, "union", union_from_components, value_callback))
+        -- We need to set the input here in case a new table is
+        -- returned as part of hacky table indexer removal.
+        input = setter_method(input, key, value) or input
+
+    elseif value_tag == "intersection" then
+        local value = intersection_from_components(
+            components_filter(value, "intersection", intersection_from_components, value_callback)
+        )
+        -- We need to set the input here in case a new table is
+        -- returned as part of hacky table indexer removal.
+        input = setter_method(input, key, value) or input
+
+    elseif value_callback(value :: type) then
+        -- We need to set the input here in case a new table is
+        -- returned as part of hacky table indexer removal.
+        input = setter_method(input, key, nil) or input
+
+    elseif key_updated then
+        -- We need to set the input here in case a new table is
+        -- returned as part of hacky table indexer removal.
+        input = setter_method(input, key, value) or input
+    end
+
+    -- We need to return the input here in case a new table is
+    -- returned as part of hacky table indexer removal.
+    return input
+end
+
+type function table_type_filter_by_keys_and_values(
+    input: typeof(types.newtable()),
+    callback: (key: type) -> boolean
 )
     for key, value in input:properties() do
-        local value_read, value_write = value.read, value.write
+        if callback(key) then
+            input:setproperty(key, nil)
+            continue
+        end
 
+        local value_read, value_write = value.read, value.write
         -- If the read and write values are identical then we only
         -- need to perform the filter check on one of them.
         if value_read == value_write then
-            -- Either the read or write value could've been used here.
-            if callback(key, value_read) then
-                input:setproperty(key, nil)
-            end
+            table_type_filter_process_value(input, key, value_read, callback, input.setproperty)
 
         else
-            if callback(key, value_read) then
-                input:setreadproperty(key, nil)
-
-            elseif callback(key, value_write) then
-                input:setwriteproperty(key, nil)
-            end
+            table_type_filter_process_value(input, key, value_read, callback, input.setreadproperty)
+            table_type_filter_process_value(input, key, value_write, callback, input.setwriteproperty)
         end
     end
 
     local indexer = input:indexer()
     if indexer then
         local indexer_index = indexer.index
-        local indexer_read_result, indexer_write_result = indexer.readresult, indexer.writeresult
+        local filtered_indexer_index
+        local indexer_index_updated
 
-        -- If the read and write indexers are identical then we only
-        -- need to perform the filter check on one of them.
-        if indexer_read_result == indexer_write_result then
-            if callback(indexer_index, indexer_read_result) then
-                input = table_type_remove_indexer_hacky_fix(input)
-                --input:setindexer(indexer_index, nil)
+        local indexer_index_tag = (indexer_index :: type).tag
+        if indexer_index_tag == "union" then
+            filtered_indexer_index = union_from_components(
+                components_filter(indexer_index:components(), "union", union_from_components, callback)
+            )
+
+            if filtered_indexer_index == nil then
+                return table_type_remove_indexer_hacky_fix(input)
             end
+
+            indexer_index_updated = true
+
+        elseif indexer_index_tag == "intersection" then
+            filtered_indexer_index = intersection_from_components(
+                components_filter(indexer_index:components(), "intersection", intersection_from_components, callback)
+            )
+
+            if filtered_indexer_index == nil then
+                return table_type_remove_indexer_hacky_fix(input)
+            end
+
+            indexer_index_updated = true
 
         else
-            if callback(indexer_index, indexer_read_result) then
-                input = table_type_remove_read_indexer_hacky_fix(input)
-                -- [[input:setreadindexer(indexer_index, nil)
+            filtered_indexer_index = indexer_index
+            indexer_index_updated = false
+        end
+
+        local indexer_read_result, indexer_write_result = indexer.readresult, indexer.writeresult
+
+        -- If the read and write values are identical then we only
+        -- need to perform the filter check on one of them.
+        if indexer_read_result == indexer_write_result then
+            input = table_type_filter_process_indexer_result(
+                input, filtered_indexer_index, indexer_read_result, callback,
+                table_type_set_indexer_or_remove, indexer_index_updated
+            )
+
+        else
+            input = table_type_filter_process_indexer_result(
+                input, filtered_indexer_index, indexer_read_result, callback,
+                table_type_set_read_indexer_or_remove, indexer_index_updated
+            )
+            input = table_type_filter_process_indexer_result(
+                input, filtered_indexer_index, indexer_write_result, callback,
+                table_type_set_write_indexer_or_remove, indexer_index_updated
+            )
+        end
+    end
+
+    return input
+end
+
+type function table_type_filter_by_keys(
+    input: typeof(types.newtable()),
+    callback: (input: type) -> boolean
+)
+    for key, value in input:properties() do
+        if callback(key) then
+            input:setproperty(key, nil)
+            continue
+        end
+    end
+
+    local indexer = input:indexer()
+    if indexer then
+        local indexer_index = indexer.index
+
+        local indexer_index_tag = (indexer_index :: type).tag
+        if indexer_index_tag == "union" then
+            local filtered_indexer_index = union_from_components(
+                components_filter(indexer_index:components(), "union", union_from_components, callback)
+            )
+
+            if filtered_indexer_index == nil then
+                return table_type_remove_indexer_hacky_fix(input)
+            else
+                -- TODO: add support for read and write indexers when available.
+                input:setindexer(filtered_indexer_index, indexer.readresult)
+                --input:setreadindexer(filtered_indexer_index, indexer.readresult)
+                --input:setwriteindexer(filtered_indexer_index, indexer.writeresult)
             end
 
-            if callback(indexer_index, indexer_write_result) then
-                return table_type_remove_write_indexer_hacky_fix(input)
-                --input:setwriteindexer(indexer_index, nil)
+        elseif indexer_index_tag == "intersection" then
+            local filtered_indexer_index = intersection_from_components(
+                components_filter(indexer_index:components(), "intersection", intersection_from_components, callback)
+            )
+
+            if filtered_indexer_index == nil then
+                return table_type_remove_indexer_hacky_fix(input)
+            else
+                input:setreadindexer(filtered_indexer_index, indexer.readresult)
+                input:setwriteindexer(filtered_indexer_index, indexer.writeresult)
             end
+        end
+    end
+
+    return input
+end
+
+type function table_type_filter_by_values(
+    input: typeof(types.newtable()),
+    callback: (key: type) -> boolean
+)
+    for key, value in input:properties() do
+        local value_read, value_write = value.read, value.write
+        -- If the read and write values are identical then we only
+        -- need to perform the filter check on one of them.
+        if value_read == value_write then
+            table_type_filter_process_value(input, key, value_read, callback, input.setproperty)
+
+        else
+            table_type_filter_process_value(input, key, value_read, callback, input.setreadproperty)
+            table_type_filter_process_value(input, key, value_write, callback, input.setwriteproperty)
+        end
+    end
+
+    local indexer = input:indexer()
+    if indexer then
+        local indexer_index = indexer.index
+
+        local indexer_read_result, indexer_write_result = indexer.readresult, indexer.writeresult
+
+        -- If the read and write values are identical then we only
+        -- need to perform the filter check on one of them.
+        if indexer_read_result == indexer_write_result then
+            input = table_type_filter_process_indexer_result(
+                input, indexer_index, indexer_read_result, callback,
+                table_type_set_indexer_or_remove, false
+            )
+
+        else
+            input = table_type_filter_process_indexer_result(
+                input, indexer_index, indexer_read_result, callback,
+                table_type_set_read_indexer_or_remove, false
+            )
+            input = table_type_filter_process_indexer_result(
+                input, indexer_index, indexer_write_result, callback,
+                table_type_set_write_indexer_or_remove, false
+            )
         end
     end
 
@@ -825,7 +1087,7 @@ export type function OmitUnion(input: type, to_omit: type)
         local hashset, non_hashsettable = hashset_from_components(to_omit:components())
 
         return union_filter(input, function(component): boolean
-            return hashset_has_type(hashset, non_hashsettable, component)
+            return hashset_has_type(hashset, non_hashsettable, component, component.tag)
         end) or types.never
 
     else
@@ -846,7 +1108,7 @@ export type function PickUnion(input: type, to_pick: type)
         local hashset, non_hashsettable = hashset_from_components(to_pick:components())
 
         return union_filter(input, function(component): boolean
-            return hashset_has_type(hashset, non_hashsettable, component)
+            return hashset_has_type(hashset, non_hashsettable, component, component.tag)
         end) or types.never
 
     else
@@ -903,7 +1165,7 @@ export type function OmitIntersection(input: type, to_omit: type)
         local hashset, non_hashsettable = hashset_from_components(to_omit:components())
 
         return intersection_filter(input, function(component): boolean
-            return hashset_has_type(hashset, non_hashsettable, component)
+            return hashset_has_type(hashset, non_hashsettable, component, component.tag)
         end) or types.never
 
     else
@@ -929,7 +1191,7 @@ export type function PickIntersection(input: type, to_pick: type)
         local hashset, non_hashsettable = hashset_from_components(to_pick:components())
 
         return intersection_filter(input, function(component): boolean
-            return hashset_has_type(hashset, non_hashsettable, component)
+            return hashset_has_type(hashset, non_hashsettable, component, component.tag)
         end) or types.never
 
     else
@@ -1003,71 +1265,13 @@ export type function OmitTable(input: typeof(types.newtable()), to_omit: type)
     if to_omit.tag == "union" then
         local hashset, non_hashsettable = hashset_from_components(to_omit:components())
 
-        return table_type_filter(input, function(key, value): boolean
-            local key_tag = key.tag
-            local key_is_union_or_intersection = key_tag == "union" or key_tag == "intersection"
-
-            local value_tag = value.tag
-            local value_is_union_or_intersection = value_tag == "union" or value_tag == "intersection"
-
-            if (not key_is_union_or_intersection) and (not value_is_union_or_intersection) then
-                if hashset_has_type(hashset, non_hashsettable, key) then return true end
-                if hashset_has_type(hashset, non_hashsettable, value) then return true end
-
-                for _, component in non_hashsettable do
-                    if key == component or value == component then return true end
-                end
-
-            else
-                if key_is_union_or_intersection then
-                    for _, component_a in key:components() do
-                        for _, component_b in non_hashsettable do
-                            if component_a == component_b then return true end
-                        end
-                    end
-    
-                else
-                    if hashset_has_type(hashset, non_hashsettable, key) then return true end
-                end
-
-                if value_is_union_or_intersection then
-                    for _, component_a in value:components() do
-                        for _, component_b in non_hashsettable do
-                            if component_a == component_b then return true end
-                        end
-                    end
-    
-                else
-                    if hashset_has_type(hashset, non_hashsettable, value) then return true end
-                end
-            end
-
-            return false
+        return table_type_filter_by_keys_and_values(input, function(component: type)
+            return if hashset_has_type(hashset, non_hashsettable, component, component.tag) then true else false
         end)
 
     else
-        return table_type_filter(input, function(key, value)
-            local key_tag = key.tag
-            if key_tag == "union" or key_tag == "intersection" then
-                for _, component in key:components() do
-                    if component == to_omit then return true end
-                end
-
-            else
-                if key == to_omit then return true end
-            end
-
-            local value_tag = value.tag
-            if value_tag == "union" or value_tag == "intersection" then
-                for _, component in value:components() do
-                    if component == to_omit then return true end
-                end
-
-            else
-                if value == to_omit then return true end
-            end
-
-            return false
+        return table_type_filter_by_keys_and_values(input, function(component: type)
+            return component == to_omit
         end)
     end
 end
@@ -1096,36 +1300,13 @@ export type function OmitTableByKeys(input: typeof(types.newtable()), to_omit: t
     if to_omit.tag == "union" then
         local hashset, non_hashsettable = hashset_from_components(to_omit:components())
 
-        return table_type_filter(input, function(key): boolean
-            local key_tag = key.tag
-
-            if key_tag == "union" or key_tag == "intersection" then
-                for _, component_a in key:components() do
-                    for _, component_b in non_hashsettable do
-                        if component_a == component_b then return true end
-                    end
-                end
-
-            else
-                if hashset_has_type(hashset, non_hashsettable, key) then return true end
-            end
-
-            return false
+        return table_type_filter_by_keys(input, function(component: type)
+            return if hashset_has_type(hashset, non_hashsettable, component, component.tag) then true else false
         end)
 
     else
-        return table_type_filter(input, function(key)
-            local key_tag = key.tag
-            if key_tag == "union" or key_tag == "intersection" then
-                for _, component in key:components() do
-                    if component == to_omit then return true end
-                end
-
-            else
-                if key == to_omit then return true end
-            end
-
-            return false
+        return table_type_filter_by_keys(input, function(component: type)
+            return component == to_omit
         end)
     end
 end
@@ -1154,36 +1335,13 @@ export type function OmitTableByValues(input: typeof(types.newtable()), to_omit:
     if to_omit.tag == "union" then
         local hashset, non_hashsettable = hashset_from_components(to_omit:components())
 
-        return table_type_filter(input, function(_, value): boolean
-            local value_tag = value.tag
-
-            if value_tag == "union" or value_tag == "intersection" then
-                for _, component_a in value:components() do
-                    for _, component_b in non_hashsettable do
-                        if component_a == component_b then return true end
-                    end
-                end
-
-            else
-                if hashset_has_type(hashset, non_hashsettable, value) then return true end
-            end
-
-            return false
+        return table_type_filter_by_values(input, function(component: type)
+            return if hashset_has_type(hashset, non_hashsettable, component, component.tag) then true else false
         end)
 
     else
-        return table_type_filter(input, function(_, value)
-            local value_tag = value.tag
-            if value_tag == "union" or value_tag == "intersection" then
-                for _, component in value:components() do
-                    if component == to_omit then return true end
-                end
-
-            else
-                if value == to_omit then return true end
-            end
-
-            return false
+        return table_type_filter_by_values(input, function(component: type)
+            return component == to_omit
         end)
     end
 end
@@ -1212,71 +1370,13 @@ export type function PickTable(input: typeof(types.newtable()), to_pick: type)
     if to_pick.tag == "union" then
         local hashset, non_hashsettable = hashset_from_components(to_pick:components())
 
-        return table_type_filter(input, function(key, value): boolean
-            local key_tag = key.tag
-            local key_is_union_or_intersection = key_tag == "union" or key_tag == "intersection"
-
-            local value_tag = value.tag
-            local value_is_union_or_intersection = value_tag == "union" or value_tag == "intersection"
-
-            if (not key_is_union_or_intersection) and (not value_is_union_or_intersection) then
-                if hashset_has_type(hashset, non_hashsettable, key) then return false end
-                if hashset_has_type(hashset, non_hashsettable, value) then return false end
-
-                for _, component in non_hashsettable do
-                    if key == component or value == component then return false end
-                end
-
-            else
-                if key_is_union_or_intersection then
-                    for _, component_a in key:components() do
-                        for _, component_b in non_hashsettable do
-                            if component_a == component_b then return false end
-                        end
-                    end
-    
-                else
-                    if hashset_has_type(hashset, non_hashsettable, key) then return false end
-                end
-
-                if value_is_union_or_intersection then
-                    for _, component_a in value:components() do
-                        for _, component_b in non_hashsettable do
-                            if component_a == component_b then return false end
-                        end
-                    end
-    
-                else
-                    if hashset_has_type(hashset, non_hashsettable, value) then return false end
-                end
-            end
-
-            return true
+        return table_type_filter_by_keys_and_values(input, function(component: type)
+            return if not hashset_has_type(hashset, non_hashsettable, component, component.tag) then true else false
         end)
 
     else
-        return table_type_filter(input, function(key, value)
-            local key_tag = key.tag
-            if key_tag == "union" or key_tag == "intersection" then
-                for _, component in key:components() do
-                    if component == to_pick then return false end
-                end
-
-            else
-                if key == to_pick then return false end
-            end
-
-            local value_tag = value.tag
-            if value_tag == "union" or value_tag == "intersection" then
-                for _, component in value:components() do
-                    if component == to_pick then return false end
-                end
-
-            else
-                if value == to_pick then return false end
-            end
-
-            return true
+        return table_type_filter_by_keys_and_values(input, function(component: type)
+            return component ~= to_pick
         end)
     end
 end
@@ -1305,36 +1405,13 @@ export type function PickTableByKeys(input: typeof(types.newtable()), to_pick: t
     if to_pick.tag == "union" then
         local hashset, non_hashsettable = hashset_from_components(to_pick:components())
 
-        return table_type_filter(input, function(key): boolean
-            local key_tag = key.tag
-
-            if key_tag == "union" or key_tag == "intersection" then
-                for _, component_a in key:components() do
-                    for _, component_b in non_hashsettable do
-                        if component_a == component_b then return false end
-                    end
-                end
-
-            else
-                if hashset_has_type(hashset, non_hashsettable, key) then return false end
-            end
-
-            return true
+        return table_type_filter_by_keys(input, function(component: type)
+            return if not hashset_has_type(hashset, non_hashsettable, component, component.tag) then true else false
         end)
 
     else
-        return table_type_filter(input, function(key)
-            local key_tag = key.tag
-            if key_tag == "union" or key_tag == "intersection" then
-                for _, component in key:components() do
-                    if component == to_pick then return false end
-                end
-
-            else
-                if key == to_pick then return false end
-            end
-
-            return true
+        return table_type_filter_by_keys(input, function(component: type)
+            return component ~= to_pick
         end)
     end
 end
@@ -1363,36 +1440,13 @@ export type function PickTableByValues(input: typeof(types.newtable()), to_pick:
     if to_pick.tag == "union" then
         local hashset, non_hashsettable = hashset_from_components(to_pick:components())
 
-        return table_type_filter(input, function(_, value): boolean
-            local value_tag = value.tag
-
-            if value_tag == "union" or value_tag == "intersection" then
-                for _, component_a in value:components() do
-                    for _, component_b in non_hashsettable do
-                        if component_a == component_b then return false end
-                    end
-                end
-
-            else
-                if hashset_has_type(hashset, non_hashsettable, value) then return false end
-            end
-
-            return true
+        return table_type_filter_by_values(input, function(component: type)
+            return if not hashset_has_type(hashset, non_hashsettable, component, component.tag) then true else false
         end)
 
     else
-        return table_type_filter(input, function(_, value)
-            local value_tag = value.tag
-            if value_tag == "union" or value_tag == "intersection" then
-                for _, component in value:components() do
-                    if component == to_pick then return false end
-                end
-
-            else
-                if value == to_pick then return false end
-            end
-
-            return true
+        return table_type_filter_by_values(input, function(component: type)
+            return component ~= to_pick
         end)
     end
 end
@@ -1949,7 +2003,7 @@ end
     @param toBe any -- The type you want to compare `expect` to.
 ]=]
 export type function Expect(type_a: type, type_b: type)
-    if type_a ~= type_b then
+    if sort_type(type_a) ~= sort_type(type_b) then
         local type_a_tag, type_b_tag = type_a.tag, type_b.tag
 
         local type_a_name = if type_a_tag == "singleton" then type(type_a:value()) else type_a_tag
@@ -1968,7 +2022,7 @@ type function Stringify(input: type)
     return stringify_main(input, 1)
 end
 
-export type function print(input: type)
+export type function StringifyPrint(input: type)
     print(Stringify(input))
 end
 ----------------------------------------------------------------------------------------

@@ -23,32 +23,31 @@ type TablePick_TestB = t.Expect<
 
 -- Test C: Picking 1 indexer component from a table.
 -- HOW TO FIX: add a separate function for handling indexers in table_type_filter helper.
---[[type TablePick_TestC = t.Expect<
+type TablePick_TestC = t.Expect<
     t.PickTableByKeys<{ [string | "hello" | "lol"]: any, Name: string, Age: number }, "hello">,
     set_indexer<{}, "hello", any>
->]]
+>
 
 -- Test D: Picking multiple indexer components from a table.
 -- HOW TO FIX: add a separate function for handling indexers in table_type_filter helper.
---[[type TablePick_TestD = t.Expect<
+type TablePick_TestD = t.Expect<
     t.PickTableByKeys<{ [string | "hello" | "lol"]: any, Name: string, Age: number }, "hello" | string>,
     set_indexer<{}, "hello" | string, any>
->]]
+>
 
 -- Test E: Picking multiple indexer components and properties from a table.
 -- HOW TO FIX: add a separate function for handling indexers in table_type_filter helper.
---[[type TablePick_TestE = t.Expect<
+type TablePick_TestE = t.Expect<
     t.PickTableByKeys<{ [string | "hello" | "lol"]: any, Name: string, Age: number }, "hello" | string | "Name" | "Age">,
     set_indexer<{ Name: string, Age: number }, "hello" | string, any>
->]]
+>
 
 
 -- Test F: Picking a property and indexer of the same string literal.
--- HOW TO FIX: add a separate function for handling indexers in table_type_filter helper.
---[[type TablePick_TestF = t.Expect<
+type TablePick_TestF = t.Expect<
     t.PickTableByKeys<{ [string | "hello" | "lol" | "Age"]: any, Name: string, Age: number }, "Age">,
     set_indexer<{ Age: number }, "Age", any>
->]]
+>
 
 -- Test G: Picking a property from an intersection of two tables.
 type TablePick_TestG = t.Expect<
