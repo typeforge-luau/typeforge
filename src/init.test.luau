@@ -7,6 +7,7 @@ type function set_indexer(input: typeof(types.newtable()), index: type, result: 
     return input
 end
 
+
 --> Union ---------------------------------------------------------------------------------------------
 -- OmitUnion ------------------------------------------
 -- Test A: Omits one non-literal type from a union.
@@ -40,7 +41,6 @@ type OmitUnion_TestE = t.Expect<
 >
 -------------------------------------------------------
 
-
 -- PickUnion ------------------------------------------
 -- Test A: Pick one non-literal type from a union.
 type PickUnion_TestA = t.Expect<
@@ -65,38 +65,48 @@ type PickUnion_TestD = t.Expect<
     t.PickUnion<string | number | "foo" | "bar", "foo" | "bar">,
     "foo" | "bar"
 >
+
+-- Test E: Picks an intersection of unions.
+type PickUnion_TestE = t.Expect<
+    t.PickUnion<("hello" | "world") & ("foo" | "bar"), "world" | "bar">,
+    "world" & "bar"
+>
 -------------------------------------------------------
 
-
 -- FlattenUnion ---------------------------------------
--- Test  A: Flattens a union of two unions.
+-- Test A: Flattens a union of two unions.
 type FlattenUnion_TestA = t.Expect<
     t.FlattenUnion<((string | "foo") | (number | "bar"))>,
     string | "foo" | number | "bar"
 >
 
--- Test  B: Flattens a nested union.
+-- Test B: Flattens a nested union.
 type FlattenUnion_TestB = t.Expect<
     t.FlattenUnion<"hello" | ("lol" | ("kek" | "food"))>,
     "hello" | "lol" | "kek" | "food"
 >
+
+-- Test C: Flattens an intersection of two nested unions.
+type FlattenUnion_TestC = t.Expect<
+    t.FlattenUnion<(string | ("foo" | "lol")) & (number | ("bar" | "world"))>,
+    (string | "foo" | "lol") & (number | "bar" | "world")
+>
 -------------------------------------------------------
 
-
 -- CleanUnion -----------------------------------------
--- Test  A: Cleans a union.
+-- Test A: Cleans a union.
 type CleanUnion_TestA = t.Expect<
     t.CleanUnion<"hello" | "hello" | "lol">,
     "hello" | "lol"
 >
 
--- Test  B: Cleans a nested union.
+-- Test B: Cleans a nested union.
 type CleanUnion_TestB = t.Expect<
     t.CleanUnion<"hello" | "hello" | ("lol" | ("kek" | "kek" | "food"))>,
     "hello" | ("lol" | ("kek" | "food"))
 >
 
--- Test  C: Cleans an intersection of unions.
+-- Test C: Cleans an intersection of unions.
 type CleanUnion_TestC = t.Expect<
     t.CleanUnion<("hello" | "hello" | "lol") & ("bob" | "hai" | "hai")>,
     ("hello" | "lol") & ("bob" | "hai")
@@ -138,7 +148,6 @@ type OmitIntersection_TestE = t.Expect<
 >
 -------------------------------------------------------
 
-
 -- PickIntersection -----------------------------------
 -- Test A: Pick one non-literal type from an intersection.
 type PickIntersection_TestA = t.Expect<
@@ -163,8 +172,13 @@ type PickIntersection_TestD = t.Expect<
     t.PickIntersection<string & number & "foo" & "bar", "foo" | "bar">,
     "foo"&  "bar"
 >
--------------------------------------------------------
 
+-- Test E: Picks a union of intersections.
+type PickIntersection_TestE = t.Expect<
+    t.PickIntersection<("hello" & "world") | ("foo" & "bar"), "world" | "bar">,
+    "world" | "bar"
+>
+-------------------------------------------------------
 
 -- FlattenIntersection --------------------------------
 -- Test A: Flattens an intersection of two intersections.
@@ -178,8 +192,13 @@ type FlattenIntersection_TestB = t.Expect<
     t.FlattenIntersection<"hello" & ("lol" & ("kek" & "food"))>,
     "hello" & "lol" & "kek" & "food"
 >
--------------------------------------------------------
 
+-- Test C: Flattens a union of two nested intersections.
+type FlattenIntersection_TestC = t.Expect<
+    t.FlattenIntersection<(string & ("foo" & "lol")) | (number & ("bar" & "world"))>,
+    (string & "foo" & "lol") | (number & "bar" & "world")
+>
+-------------------------------------------------------
 
 -- CleanIntersection ----------------------------------
 -- Test A: Cleans an intersection.
@@ -202,40 +221,140 @@ type CleanCleanIntersection_TestC = t.Expect<
 -------------------------------------------------------
 -------------------------------------------------------------------------------------------------------
 
+
 --> Table ---------------------------------------------------------------------------------------------
--- PickTableByKeys -----------------------------------
--- Test A: Picking 1 string literal property from a table.
+-- OmitTableByKeys ------------------------------------
+-- Test A: Omitting one property which has a specific string literal key from a table.
+type OmitTableByKeys_TestA = t.Expect<
+    t.OmitTableByKeys<{ [string | "hello" | "lol"]: any, Name: string, Age: number }, "Name">,
+    { [string | "hello" | "lol"]: any, Age: number }
+>
+
+-- Test B: Omitting multiple properties which have specific string literal keys from a table.
+type OmitTableByKeys_TestB = t.Expect<
+    t.OmitTableByKeys<{ [string | "hello" | "lol"]: any, Name: string, Age: number }, "Name" | "Age">,
+    { [string | "hello" | "lol"]: any }
+>
+
+-- Test C: Omitting 1 indexer index component from a table.
+type OmitTableByKeys_TestC = t.Expect<
+    t.OmitTableByKeys<{ [string | "hello" | "lol"]: any, Name: string, Age: number }, "hello">,
+    set_indexer<{ Name: string, Age: number }, string | "lol", any>
+>
+
+-- Test D: Omitting multiple indexer index components from a table.
+type OmitTableByKeys_TestD = t.Expect<
+    t.OmitTableByKeys<{ [string | "hello" | "lol"]: any, Name: string, Age: number }, "hello" | string>,
+    set_indexer<{ Name: string, Age: number }, "lol", any>
+>
+
+-- Test E: Omitting multiple indexer index components and properties from a table.
+type OmitTableByKeys_TestE = t.Expect<
+    t.OmitTableByKeys<{ [string | "hello" | "lol"]: any, Name: string, Age: number }, "hello" | string | "Name" | "Age">,
+    set_indexer<{ }, "lol", any>
+>
+
+-- Test F: Omitting a property and indexer which both have the same string literal key / index.
+type OmitTableByKeys_TestF = t.Expect<
+    t.OmitTableByKeys<{ [string | "hello" | "lol" | "Age"]: any, Name: string, Age: number }, "Age">,
+    set_indexer<{ Name: string }, string | "hello" | "lol", any>
+>
+
+-- Test G: Picking a property from an intersection of two tables.
+type OmitTableByKeys_TestG = t.Expect<
+    t.OmitTableByKeys<{ hello: "world" } & { foo: "bar" }, "hello">,
+    { } & { foo: "bar" }
+>
+
+-- Test H: Omitting two properties from an intersection of two tables where each component to be picked exists in a different table.
+type OmitTableByKeys_TestH = t.Expect<
+    t.OmitTableByKeys<{ hello: "world" } & { foo: "bar" }, "hello" | "foo">,
+    { } & { }
+>
+-------------------------------------------------------
+
+-- OmitTableByValues ----------------------------------
+-- Test A: Omitting one property which has a specific primitive value from a table.
+type OmitTableByValues_TestA = t.Expect<
+    t.OmitTableByValues<{ [string | "hello" | "lol"]: any, Name: string, Age: number }, string>,
+    { [string | "hello" | "lol"]: any, Age: number }
+>
+
+-- Test B: Omitting multiple properties which have specific string literal value from a table.
+type OmitTableByValues_TestB = t.Expect<
+    t.OmitTableByValues<{ [string | "hello" | "lol"]: any, Name: string, Age: number }, string | number>,
+    { [string | "hello" | "lol"]: any }
+>
+
+-- Test C: Omitting one indexer result component from a table.
+type OmitTableByValues_TestC = t.Expect<
+    t.OmitTableByValues<{ [any]: string | "hello" | "lol", Name: string, Age: number }, "hello">,
+    { [any]: string | "lol", Name: string, Age: number }
+>
+
+-- Test D: Omitting multiple indexer result components from a table.
+type OmitTableByValues_TestD = t.Expect<
+    t.OmitTableByValues<{ [any]: string | "hello" | "lol", Name: string, Age: number }, "hello" | "lol">,
+    { [any]: string, Name: string, Age: number }
+>
+
+-- Test E: Omitting multiple indexer result components and properties from a table.
+type OmitTableByValues_TestE = t.Expect<
+    t.OmitTableByValues<{ [any]: string | "hello" | "lol", Name: string, Age: number }, "hello" | string | number>,
+    { [any]: "lol" }
+>
+
+-- Test F: Omitting a property and indexer which both have the same value / result.
+type OmitTableByValues_TestF = t.Expect<
+    t.OmitTableByValues<{ [any]: string | "hello" | "lol" | "Age", field: "Age" }, "Age">,
+    { [any]: string | "hello" | "lol" }
+>
+
+-- Test G: Omitting a property by value from an intersection of two tables.
+type OmitTableByValues_TestG = t.Expect<
+    t.OmitTableByValues<{ hello: "world" } & { foo: "bar" }, "world">,
+    { } & { foo: "bar" }
+>
+
+-- Test H: Omitting 2 properties by values from an intersection of two tables where each component to be picked exists in a different table.
+type OmitTableByValues_TestH = t.Expect<
+    t.OmitTableByValues<{ hello: "world" } & { foo: "bar" }, "world" | "bar">,
+    { } & { }
+>
+-------------------------------------------------------
+
+-- PickTableByKeys ------------------------------------
+-- Test A: Picking one property which has a specific string literal key from a table.
 type PickTableByKeys_TestA = t.Expect<
     t.PickTableByKeys<{ [string | "hello" | "lol"]: any, Name: string, Age: number }, "Name">,
     { Name: string }
 >
 
--- Test B: Picking multiple string literal properties from a table.
+-- Test B: Picking multiple properties which have specific string literal keys from a table.
 type PickTableByKeys_TestB = t.Expect<
     t.PickTableByKeys<{ [string | "hello" | "lol"]: any, Name: string, Age: number }, "Name" | "Age">,
     { Name: string, Age: number }
 >
 
--- Test C: Picking 1 indexer component from a table.
+-- Test C: Picking 1 indexer index component from a table.
 type PickTableByKeys_TestC = t.Expect<
     t.PickTableByKeys<{ [string | "hello" | "lol"]: any, Name: string, Age: number }, "hello">,
-    set_indexer<{}, "hello", any>
+    set_indexer<{ }, "hello", any>
 >
 
--- Test D: Picking multiple indexer components from a table.
+-- Test D: Picking multiple indexer index components from a table.
 type PickTableByKeys_TestD = t.Expect<
     t.PickTableByKeys<{ [string | "hello" | "lol"]: any, Name: string, Age: number }, "hello" | string>,
-    set_indexer<{}, "hello" | string, any>
+    set_indexer<{ }, "hello" | string, any>
 >
 
--- Test E: Picking multiple indexer components and properties from a table.
+-- Test E: Picking multiple indexer index components and properties from a table.
 type PickTableByKeys_TestE = t.Expect<
     t.PickTableByKeys<{ [string | "hello" | "lol"]: any, Name: string, Age: number }, "hello" | string | "Name" | "Age">,
     set_indexer<{ Name: string, Age: number }, "hello" | string, any>
 >
 
-
--- Test F: Picking a property and indexer of the same string literal.
+-- Test F: Picking a property and indexer which both have the same string literal key / index.
 type PickTableByKeys_TestF = t.Expect<
     t.PickTableByKeys<{ [string | "hello" | "lol" | "Age"]: any, Name: string, Age: number }, "Age">,
     set_indexer<{ Age: number }, "Age", any>
@@ -252,4 +371,185 @@ type PickTableByKeys_TestH = t.Expect<
     t.PickTableByKeys<{ hello: "world" } & { foo: "bar" }, "hello" | "foo">,
     { hello: "world" } & { foo: "bar" }
 >
+-------------------------------------------------------
+
+-- PickTableByValues ----------------------------------
+-- Test A: Picking one property which has a specific primitive value from a table.
+type PickTableByValues_TestA = t.Expect<
+    t.PickTableByValues<{ [string | "hello" | "lol"]: any, Name: string, Age: number }, string>,
+    { Name: string }
+>
+
+-- Test B: Picking multiple properties which have specific string literal value from a table.
+type PickTableByValues_TestB = t.Expect<
+    t.PickTableByValues<{ [string | "hello" | "lol"]: any, Name: string, Age: number }, string | number>,
+    { Name: string, Age: number }
+>
+
+-- Test C: Picking 1 indexer result component from a table.
+type PickTableByValues_TestC = t.Expect<
+    t.PickTableByValues<{ [any]: string | "hello" | "lol", Name: string, Age: number }, "hello">,
+    set_indexer<{ }, any, "hello">
+>
+
+-- Test D: Picking multiple indexer result components from a table.
+type PickTableByValues_TestD = t.Expect<
+    t.PickTableByValues<{ [any]: string | "hello" | "lol", Name: string, Age: number }, "hello" | "lol">,
+    set_indexer<{ }, any, "hello" | "lol">
+>
+
+-- Test E: Picking multiple indexer result components and properties from a table.
+type PickTableByValues_TestE = t.Expect<
+    t.PickTableByValues<{ [any]: string | "hello" | "lol", Name: string, Age: number }, "hello" | string | number>,
+    set_indexer<{ Name: string, Age: number }, any, "hello" | string>
+>
+
+-- Test F: Picking a property and indexer which both have the same value / result.
+type PickTableByValues_TestF = t.Expect<
+    t.PickTableByValues<{ [any]: string | "hello" | "lol" | "Age", field: "Age" }, "Age">,
+    set_indexer<{ field: "Age" }, any, "Age">
+>
+
+-- Test G: Picking a property by value from an intersection of two tables.
+type PickTableByValues_TestG = t.Expect<
+    t.PickTableByValues<{ hello: "world" } & { foo: "bar" }, "world">,
+    { hello: "world" } & { }
+>
+
+-- Test H: Picking 2 properties by values from an intersection of two tables where each component to be picked exists in a different table.
+type PickTableByValues_TestH = t.Expect<
+    t.PickTableByValues<{ hello: "world" } & { foo: "bar" }, "world" | "bar">,
+    { hello: "world" } & { foo: "bar" }
+>
+-------------------------------------------------------
+
+-- FlattenTable --------------------------------------
+-- TestA: Flattening 1 table.
+type FlattenTable_TestA = t.Expect<
+    t.FlattenTable<{ hello: "world", foo: "bar", baz: "bix" }>,
+    { hello: "world", foo: "bar", baz: "bix" }
+>
+
+-- TestB: Flattening 1 table and a non-table type.
+type FlattenTable_TestB = t.Expect<
+    t.FlattenTable<{ hello: "world", foo: "bar", baz: "bix" } & string>,
+    { hello: "world", foo: "bar", baz: "bix" } & string
+>
+
+-- TestC: Flattening 1 table with a union of non-table types.
+type FlattenTable_TestC = t.Expect<
+    t.FlattenTable<{ hello: "world", foo: "bar", baz: "bix" } & (string | number)>,
+    { hello: "world", foo: "bar", baz: "bix" } & (string | number)
+>
+
+-- TestD: Flattening 1 table with a nested union of non-table types.
+type FlattenTable_TestD = t.Expect<
+    t.FlattenTable<{ hello: "world", foo: "bar", baz: "bix" } & (string | (number | boolean))>,
+    -- Ideally the union components should not be flattened.
+    -- This will be fixed in the `FlattenTable` refactor.
+    { hello: "world", foo: "bar", baz: "bix" } & t.Flatten<string | (number | boolean)>
+>
+
+-- TestE: Flattening an intersection of multiple tables where each table has no overlap.
+type FlattenTable_TestE = t.Expect<
+    t.FlattenTable<{ hello: "world", foo: "bar" } & { baz: "bix" }>,
+    { hello: "world", foo: "bar", baz: "bix" }
+>
+
+-- TestF: Flattening an intersection of multiple tables which overlap.
+type FlattenTable_TestF = t.Expect<
+    t.FlattenTable<{ hello: "world", foo: "bar" } & { hello: "second", baz: "bix" }>,
+    { hello: "world", foo: "bar", baz: "bix" }
+>
+
+-- TestG: Flattening an intersection of a table and an intersection of two tables.
+type FlattenTable_TestG = t.Expect<
+    t.FlattenTable<{ hello: "world" } & ({ foo: "bar" } & { baz: "bix" })>,
+    { hello: "world", foo: "bar", baz: "bix" }
+>
+
+-- TestH: Flattening a union of two tables with no overlap.
+type FlattenTable_TestH = t.Expect<
+    t.FlattenTable<{ hello: "world" } | { foo: "bar" }>,
+    { hello: "world" } | { foo: "bar" }
+>
+
+-- TestI: Flattening a union of two tables which overlap (should be the same as if they didn't overlap).
+type FlattenTable_TestI = t.Expect<
+    t.FlattenTable<{ hello: "world", foo: "bar" } | { foo: "bar" }>,
+    { hello: "world", foo: "bar" } | { foo: "bar" }
+>
+
+-- TestJ: Flattening a union of an intersection of two tables with one table.
+type FlattenTable_TestJ = t.Expect<
+    t.FlattenTable<(({ hello: "world" } & { foo: "bar" }) | { baz: "bix" })>,
+    { hello: "world", foo: "bar" } | { baz: "bix" }
+>
+
+-- TestK: Flattening a union of an intersection of two tables with two tables.
+type FlattenTable_TestK = t.Expect<
+    t.FlattenTable<(({ hello: "world" } & { foo: "bar" }) | { baz: "bix" } | { lol: "kek" })>,
+    { hello: "world", foo: "bar" } | { baz: "bix" } | { lol: "kek" }
+>
+
+-- TestL: Flattening a union of an intersection of two tables with nested tables.
+type FlattenTable_TestL = t.Expect<
+    t.FlattenTable<(({ hello: "world" } & { foo: "bar" }) | ({ baz: "bix" } | ({ lol: "kek" } | { right: "wrong" })))>,
+    (({ hello: "world", foo: "bar" }) | ({ baz: "bix" } | ({ lol: "kek" } | { right: "wrong" })))
+>
+
+-- TestM: Flattening a intersection of an intersection of two tables with one table.
+type FlattenTable_TestM = t.Expect<
+    t.FlattenTable<(({ hello: "world" } & { foo: "bar" }) & { baz: "bix" })>,
+    { hello: "world", foo: "bar", baz: "bix" }
+>
+
+-- TestN: Flattening a intersection of an intersection of two tables with two tables.
+type FlattenTable_TestN = t.Expect<
+    t.FlattenTable<(({ hello: "world" } & { foo: "bar" }) & { baz: "bix" } & { lol: "kek" })>,
+    { hello: "world", foo: "bar", baz: "bix", lol: "kek" }
+>
+
+-- TestO: Flattening a intersection of an union of two tables with two tables.
+--[[type FlattenTable_TestO = t.Expect<
+    t.FlattenTable<(({ hello: "world" } | { foo: "bar" }) & { baz: "bix" } & { lol: "kek" })>,
+    { baz: "bix", lol: "kek", hello: "world" } | { baz: "bix", lol: "kek", foo: "bar" }
+>]]
+
+-- TestP: Flattening a intersection of an union of a table and a non-table type with a table.
+--[[type FlattenTable_TestP = t.Expect<
+    t.FlattenTable<(({ hello: "world" } | string) & { foo: "bar" })>,
+    { foo: "bar", hello: "world" } | ({ foo: "bar" } & string)
+>]]
+
+-- TestQ: Flattening a intersection of an intersection of a table and a non-table type with a table.
+type FlattenTable_TestQ = t.Expect<
+    t.FlattenTable<(({ hello: "world" } & string) & { foo: "bar" })>,
+    ({ hello: "world", foo: "bar" }) & string
+>
+
+-- TestR: Flattening a intersection of an union of two tables with a table.
+--[[type FlattenTable_TestR = t.Expect<
+    t.FlattenTable<(({ hello: "world" } | { baz: "bix" }) & { foo: "bar" })>,
+    { foo: "bar", hello: "world" } | { foo: "bar", baz: "bix" }
+>]]
+
+-- TestS: Flattening a intersection of an intersection of two tables with a table.
+type FlattenTable_TestS = t.Expect<
+    t.FlattenTable<(({ hello: "world" } & { baz: "bix" }) & { foo: "bar" })>,
+    { hello: "world", baz: "bix", foo: "bar" }
+>
+
+-- Test T: Flattening an intersection of two tables where the first one has an indexer.
+type FlattenTable_TestT = t.Expect<
+    t.FlattenTable<{ [string]: any } & { Name: string }>,
+    { Name: string, [string]: any }
+>
+
+-- Test U: Flattening an intersection of two tables where the second one has an indexer.
+type FlattenTable_TestU = t.Expect<
+    t.FlattenTable<{ Name: string } & { [string]: any }>,
+    { Name: string, [string]: any }
+>
 ------------------------------------------------------
+-------------------------------------------------------------------------------------------------------
