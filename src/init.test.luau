@@ -8,6 +8,9 @@ type function set_indexer(input: typeof(types.newtable()), index: type, result: 
 end
 
 
+--> Core ----------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------
+
 --> Union ---------------------------------------------------------------------------------------------
 -- OmitUnion ------------------------------------------
 -- Test A: Omits one non-literal type from a union.
@@ -423,7 +426,7 @@ type PickTableByValues_TestH = t.Expect<
 >
 -------------------------------------------------------
 
--- FlattenTable --------------------------------------
+-- FlattenTable ---------------------------------------
 -- TestA: Flattening 1 table.
 type FlattenTable_TestA = t.Expect<
     t.FlattenTable<{ hello: "world", foo: "bar", baz: "bix" }>,
@@ -439,15 +442,17 @@ type FlattenTable_TestB = t.Expect<
 -- TestC: Flattening 1 table with a union of non-table types.
 type FlattenTable_TestC = t.Expect<
     t.FlattenTable<{ hello: "world", foo: "bar", baz: "bix" } & (string | number)>,
-    { hello: "world", foo: "bar", baz: "bix" } & (string | number)
+    ({ hello: "world", foo: "bar", baz: "bix" } & string) |
+    ({ hello: "world", foo: "bar", baz: "bix" } & number)
 >
 
 -- TestD: Flattening 1 table with a nested union of non-table types.
 type FlattenTable_TestD = t.Expect<
+    -- FlattenTable<(({ hello: "world" } | string) & { foo: "bar" })>,
     t.FlattenTable<{ hello: "world", foo: "bar", baz: "bix" } & (string | (number | boolean))>,
-    -- Ideally the union components should not be flattened.
-    -- This will be fixed in the `FlattenTable` refactor.
-    { hello: "world", foo: "bar", baz: "bix" } & t.Flatten<string | (number | boolean)>
+    ({ hello: "world", foo: "bar", baz: "bix" } & string) |
+    ({ hello: "world", foo: "bar", baz: "bix" } & number) |
+    ({ hello: "world", foo: "bar", baz: "bix" } & boolean)
 >
 
 -- TestE: Flattening an intersection of multiple tables where each table has no overlap.
@@ -511,16 +516,16 @@ type FlattenTable_TestN = t.Expect<
 >
 
 -- TestO: Flattening a intersection of an union of two tables with two tables.
---[[type FlattenTable_TestO = t.Expect<
+type FlattenTable_TestO = t.Expect<
     t.FlattenTable<(({ hello: "world" } | { foo: "bar" }) & { baz: "bix" } & { lol: "kek" })>,
     { baz: "bix", lol: "kek", hello: "world" } | { baz: "bix", lol: "kek", foo: "bar" }
->]]
+>
 
 -- TestP: Flattening a intersection of an union of a table and a non-table type with a table.
---[[type FlattenTable_TestP = t.Expect<
+type FlattenTable_TestP = t.Expect<
     t.FlattenTable<(({ hello: "world" } | string) & { foo: "bar" })>,
     { foo: "bar", hello: "world" } | ({ foo: "bar" } & string)
->]]
+>
 
 -- TestQ: Flattening a intersection of an intersection of a table and a non-table type with a table.
 type FlattenTable_TestQ = t.Expect<
@@ -529,10 +534,10 @@ type FlattenTable_TestQ = t.Expect<
 >
 
 -- TestR: Flattening a intersection of an union of two tables with a table.
---[[type FlattenTable_TestR = t.Expect<
+type FlattenTable_TestR = t.Expect<
     t.FlattenTable<(({ hello: "world" } | { baz: "bix" }) & { foo: "bar" })>,
     { foo: "bar", hello: "world" } | { foo: "bar", baz: "bix" }
->]]
+>
 
 -- TestS: Flattening a intersection of an intersection of two tables with a table.
 type FlattenTable_TestS = t.Expect<
@@ -551,5 +556,12 @@ type FlattenTable_TestU = t.Expect<
     t.FlattenTable<{ Name: string } & { [string]: any }>,
     { Name: string, [string]: any }
 >
-------------------------------------------------------
+-------------------------------------------------------
+
+-- FlattenTable ---------------------------------------
+type CleanTable_TestA = t.Expect<
+    t.CleanTable<{ hello: "world" | "hey" | "hey" }>,
+    { hello: "world" | "hey" }
+>
+-------------------------------------------------------
 -------------------------------------------------------------------------------------------------------

@@ -2,6 +2,18 @@
 --!nolint LocalShadow
 
 --> Helpers ----------------------------------------------------------------------------
+type function handle_negation<T>(input: type, callback: (input: type, input_tag: string) -> T)
+    local input_tag = input.tag
+
+    if input_tag == "negation" then
+        local input_inner = input:inner()
+        return types.negationof(callback(input_inner, input_inner.tag))
+
+    else
+        return callback(input, input_tag)
+    end
+end
+
 type function assert_is_msg(input: type, input_type: string, label: string, is: string)
     local error_msg_start = `\n'{label}' should be of type {is}`
 
@@ -90,62 +102,6 @@ type function unions_and_intersections_flatten(
     end
 end
 
-type function unions_and_intersections_clean(
-    input: typeof(types.unionof()) | typeof(types.intersectionof()),
-    hashset: typeof(types.newtable()),
-    non_hashsettable: { [number]: type },
-
-    input_tag: string,
-    input_tag_other: string,
-    input_builder: (components: { [number]: type }) -> (typeof(types.unionof()) | typeof(types.intersectionof())),
-
-    other_input_tag: string,
-    other_input_tag_other: string,
-    other_input_builder: (components: { [number]: type }) -> (typeof(types.unionof()) | typeof(types.intersectionof()))
-)   
-    local input_len = #input
-    for idx = input_len, 1, -1 do
-        local component = input[idx]
-        local component_tag = component.tag
-        
-        if component.tag == input_tag then
-            local cleaned = input_builder(unions_and_intersections_clean(
-                component:components(), hashset, non_hashsettable,
-                input_tag, input_tag_other, input_builder,
-                other_input_tag, other_input_tag_other, other_input_builder
-            ))
-
-            if cleaned == nil then
-                input_len = table_value_swap_remove(input, input_len, idx)
-            else
-                input[idx] = cleaned
-            end
-
-        elseif component_tag == input_tag_other then
-            local cleaned = other_input_builder(unions_and_intersections_clean(
-                component:components(), types.newtable(), { },
-                other_input_tag, other_input_tag_other, other_input_builder,
-                input_tag, input_tag_other, input_builder
-            ))
-
-            if cleaned == nil then
-                input_len = table_value_swap_remove(input, input_len, idx)
-            else
-                input[idx] = cleaned
-            end
-
-        else
-            if hashset_has_type(hashset, non_hashsettable, component) then
-                input_len = table_value_swap_remove(input, input_len, idx)
-            else
-                hashset_insert(hashset, non_hashsettable, component, component_tag)
-            end
-        end
-    end
-
-    return input
-end
-
 type function non_optional(input: type, nil_singleton: typeof(types.singleton(nil)))
     local input_tag = input.tag
 
@@ -161,40 +117,6 @@ type function non_optional(input: type, nil_singleton: typeof(types.singleton(ni
     end
 end
 
-type function is_optional(input: type, nil_singleton: typeof(types.singleton(nil)))
-    local input_tag = input.tag
-
-    if input_tag == "union" or input_tag == "intersection" then
-        local components = input:components()
-        for idx = #components, 1, -1 do
-            local component = components[idx]
-            if component == nil_singleton then return true end
-        end
-
-        return false
-    
-    else
-        return input ~= nil_singleton
-    end
-end
-
-type function is_required(input: type, nil_singleton: typeof(types.singleton(nil)))
-    local input_tag = input.tag
-
-    if input_tag == "union" or input_tag == "intersection" then
-        local components = input:components()
-        for idx = #components, 1, -1 do
-            local component = components[idx]
-            if component == nil_singleton then return false end
-        end
-
-        return true
-    
-    else
-        return input == nil_singleton
-    end
-end
-
 -- The equality operator `==` is really strict with unions and intersections,
 -- where the order of their components needs to be the same.
 type function sort_type(input: type)
@@ -206,19 +128,11 @@ type function sort_type(input: type)
         table.sort(components, function(a: type, b: type): boolean
             local a_tag, b_tag = a.tag, b.tag
 
-            if a_tag ~= b_tag then return a_tag < b_tag end
-
-            if a_tag == "union" then
-                return #a:components() < #b:components()
-            end
-
-            if a_tag == "intersection" then
-                return #a:components() < #b:components()
-            end
-
-            if a_tag ~= "singleton" then return false end
-
-            return (a:value() :: any) < (b:value() :: any)
+            return 
+                if a_tag ~= b_tag then a_tag < b_tag
+                elseif a_tag == "table" or a_tag == "union" or a_tag == "intersection" then Stringify(a) > Stringify(b)
+                elseif a_tag ~= "singleton" then false
+                else (a:value() :: any) < (b:value() :: any)
         end)
 
         for idx, component in components do
@@ -267,7 +181,7 @@ type function stringify_table(
     local properties = input:properties()
     local indexer = input:indexer()
 
-    if table_is_empty(properties, indexer) then return "{ }" end
+    if table_value_is_empty(properties, indexer) then return "{ }" end
 
     local next_nestedness = nestedness + 1
 
@@ -276,7 +190,15 @@ type function stringify_table(
 
     local stringified = `{pre_padding or outer_padding}\{`
 
-    for key, value in properties do
+    -- Sorts the table keys so its stringified representation 
+    -- to ensure stringification is deterministic.
+    local keys = {}
+    for key in properties do table.insert(keys, key) end
+    table.sort(keys, function(a, b) return tostring(a) > tostring(b) end)
+
+    for _, key in keys do
+        local value = properties[key]
+
         local key_value = if key.tag == "singleton" then key:value() else input
 
         local stringified_key =
@@ -585,19 +507,65 @@ type function components_clean(
     return input
 end
 
-type function components_contains(input: { [number]: type }, callback: (component: type) -> boolean)
-    for _, component in input do
-        if not callback(component) then continue end
-        return true
+type function components_clean_unions_and_intersections(
+    input: { [number]: type },
+    hashset: typeof(types.newtable()),
+    non_hashsettable: { [number]: type },
+
+    input_tag: string,
+    input_tag_other: string,
+
+    input_builder: (components: { [number]: type }) -> (typeof(types.unionof()) | typeof(types.intersectionof())),
+    input_builder_other: (components: { [number]: type }) -> (typeof(types.unionof()) | typeof(types.intersectionof()))
+)   
+    local input_len = #input
+    for idx = input_len, 1, -1 do
+        local component = input[idx]
+        local component_tag = component.tag
+        
+        if component_tag == input_tag then
+            local cleaned = input_builder(components_clean_unions_and_intersections(
+                component:components(), hashset, non_hashsettable,
+                input_tag, input_tag_other, input_builder, input_builder_other
+            ))
+
+            if cleaned == nil then
+                input_len = table_value_swap_remove(input, input_len, idx)
+            else
+                input[idx] = cleaned
+            end
+
+        elseif component_tag == input_tag_other then
+            local cleaned = input_builder_other(components_clean_unions_and_intersections(
+                component:components(), types.newtable(), {},
+                input_tag_other, input_tag, input_builder_other, input_builder
+            ))
+
+            if cleaned == nil then
+                input_len = table_value_swap_remove(input, input_len, idx)
+            else
+                input[idx] = cleaned
+            end
+
+        else
+            if hashset_has_type(hashset, non_hashsettable, component, component_tag) then
+                input_len = table_value_swap_remove(input, input_len, idx)
+            else
+                hashset_insert(hashset, non_hashsettable, component, component_tag)
+            end
+        end
     end
 
-    return false
+    return input
 end
 
-type function components_contains_table(input: { [number]: type })
-    return components_contains(input, function(component)
-        return component.tag == "table"
-    end)
+type function components_find_type(input: { [number]: type }, tag: string): (type?, number?)
+    for idx, component in input do
+        if component.tag ~= tag then continue end
+        return component, idx
+    end
+
+    return nil, nil
 end
 ----------------------------------------------------------------------------------------
 
@@ -646,11 +614,99 @@ type function table_value_swap_remove(input: { [any]: any }, input_len: number, 
     return input_len - 1
 end
 
-type function table_is_empty(properties: { [any]: any }, indexer: type)
+type function table_value_is_empty(properties: { [any]: any }, indexer: type)
     if indexer then return false end
 
     for _ in properties do return false end
     return true
+end
+
+type function table_flatten_with(
+    input: typeof(types.newtable()),
+    with: typeof(types.newtable()),
+    can_add_read_indexer: boolean,
+    can_add_write_indexer: boolean
+)
+    for key, value in with:properties() do
+        local can_add_read_property = not input:readproperty(key)
+        local can_add_write_property = not input:writeproperty(key)
+
+        if can_add_read_property and can_add_write_property then
+            local value_read, value_write = value.read, value.write
+
+            if value_read == value_write then
+                input:setproperty(key, value_read)
+            else
+                if value_read then
+                    input:setreadproperty(key, value_read)
+                end
+
+                if value_write then
+                    input:setwriteproperty(key, value_write)
+                end
+            end
+
+        else
+            if can_add_read_property then
+                local value_read = value.read
+                if value_read then
+                    input:setreadproperty(key, value_read)
+                end
+            end
+
+            if can_add_write_property then
+                local value_write = value.write
+                if value_write then
+                    input:setreadproperty(key, value_write)
+                end
+            end
+        end
+    end
+
+    local indexer = with:indexer()
+    if indexer then
+        if can_add_read_indexer and can_add_write_indexer then
+            local indexer_read, indexer_write = indexer.readresult, indexer.writeresult
+            
+            if indexer_read == indexer_write then
+                input:setindexer(indexer.index, indexer_read)
+
+            else
+                if indexer_read and indexer_write then
+                    local indexer_index = indexer.index
+                    input:setreadindexer(indexer_index, indexer_read)
+                    input:setwriteindexer(indexer_index, indexer_write)
+                    can_add_read_indexer, can_add_write_indexer = false, false
+                    
+                elseif indexer_read then
+                    input:setreadindexer(indexer.index, indexer_read)
+                    can_add_read_indexer = false
+
+                elseif indexer_write then
+                    input:setwriteindexer(indexer.index, indexer_write)
+                    can_add_write_indexer = false
+                end
+            end
+
+        else
+            if can_add_read_indexer then
+                local indexer_read = indexer.readresult
+                if indexer_read then
+                    input:setreadindexer(indexer.index, indexer_read)
+                    can_add_read_indexer = false
+                end
+
+            elseif can_add_write_indexer then
+                local indexer_write = indexer.writeresult
+                if indexer_write then
+                    input:setwriteindexer(indexer.index, indexer_write)
+                    can_add_write_indexer = false
+                end
+            end
+        end
+    end
+
+    return can_add_read_indexer, can_add_write_indexer
 end
 
 -- Currently there is no way to remove an indexer from
@@ -694,9 +750,9 @@ type function table_remove_read_indexer_hacky_fix(input: typeof(types.newtable()
 
     local indexer = input:indexer()
     if indexer then
-        local indexer_write_result = indexer.writeresult
-        if indexer_write_result then
-            output:setwriteindexer(indexer.index, indexer_write_result)
+        local indexer_write = indexer.writeresult
+        if indexer_write then
+            output:setwriteindexer(indexer.index, indexer_write)
         end
     end
 
@@ -723,9 +779,9 @@ type function table_remove_write_indexer_hacky_fix(input: typeof(types.newtable(
 
     local indexer = input:indexer()
     if indexer then
-        local indexer_read_result = indexer.readresult
-        if indexer_read_result then
-            output:setreadindexer(indexer.index, indexer_read_result)
+        local indexer_read = indexer.readresult
+        if indexer_read then
+            output:setreadindexer(indexer.index, indexer_read)
         end
     end
 
@@ -889,23 +945,23 @@ type function table_filter_by_values(
     if indexer then
         local indexer_index = indexer.index
 
-        local indexer_read_result, indexer_write_result = indexer.readresult, indexer.writeresult
+        local indexer_read, indexer_write = indexer.readresult, indexer.writeresult
 
         -- If the read and write values are identical then we only
         -- need to perform the filter check on one of them.
-        if indexer_read_result == indexer_write_result then
+        if indexer_read == indexer_write then
             input = table_filter_process_indexer_result(
-                input, indexer_index, indexer_read_result, callback,
+                input, indexer_index, indexer_read, callback,
                 table_set_indexer_or_remove, false
             )
 
         else
             input = table_filter_process_indexer_result(
-                input, indexer_index, indexer_read_result, callback,
+                input, indexer_index, indexer_read, callback,
                 table_set_read_indexer_or_remove, false
             )
             input = table_filter_process_indexer_result(
-                input, indexer_index, indexer_write_result, callback,
+                input, indexer_index, indexer_write, callback,
                 table_set_write_indexer_or_remove, false
             )
         end
@@ -991,7 +1047,7 @@ export type function Omit(input: type, to_omit: type)
             OmitTableByKeys(input, to_omit)
 
         elseif tag == "intersection" then
-            if components_contains_table(input:components()) then
+            if components_find_type(input:components(), "table") then
                 OmitTableByKeys(input, to_omit)
             else
                 PickIntersection(input, to_omit)
@@ -1013,7 +1069,7 @@ export type function Pick(input: type, to_pick: type)
             PickTableByKeys(input, to_pick)
 
         elseif tag == "intersection" then
-            if components_contains_table(input:components()) then
+            if components_find_type(input:components(), "table") then
                 PickTableByKeys(input, to_pick)
             else
                 PickIntersection(input, to_pick)
@@ -1043,21 +1099,19 @@ export type function Clean(input: type)
         if tag == "table" then CleanTable(input)
 
         elseif tag == "union" then
-            union_from_components(unions_and_intersections_clean(
+            union_from_components(components_clean_unions_and_intersections(
                 input:components(), types.newtable(), { },
-                tag, "intersection", union_from_components,
-                "intersection", tag, intersection_from_components
+                tag, "intersection", union_from_components, intersection_from_components
             ))
 
         elseif tag == "intersection" then
-            if components_contains_table(input:components()) then
+            if components_find_type(input:components(), "table") then
                 CleanTable(input)
 
             else
-                intersection_from_components(unions_and_intersections_clean(
+                intersection_from_components(components_clean_unions_and_intersections(
                     input:components(), types.newtable(), { },
-                    tag, "union", intersection_from_components,
-                    "union", tag, union_from_components
+                    tag, "union", intersection_from_components, union_from_components
                 ))
 
         else input
@@ -1170,24 +1224,24 @@ end
     @param to_omit any -- The components to omit.
 ]=]
 export type function OmitIntersection(input: type, to_omit: type)
-    local input_tag = input.tag
-
-    if input_tag == "union" then
-        return union_from_components(components_map(input:components(), OmitIntersection, to_omit))
-    end
-
-    if to_omit.tag == "union" then
-        local hashset, non_hashsettable = hashset_from_components(to_omit:components())
-
-        return intersection_filter(input, input_tag, function(component): boolean
-            return hashset_has_type(hashset, non_hashsettable, component, component.tag)
-        end) or types.never
-
-    else
-        return intersection_filter(input, input_tag, function(component)
-            return component == to_omit
-        end) or types.never
-    end
+    return handle_negation(input, function(input: type, input_tag: string)
+        if input_tag == "union" then
+            return union_from_components(components_map(input:components(), OmitIntersection, to_omit))
+        end
+    
+        if to_omit.tag == "union" then
+            local hashset, non_hashsettable = hashset_from_components(to_omit:components())
+    
+            return intersection_filter(input, input_tag, function(component): boolean
+                return hashset_has_type(hashset, non_hashsettable, component, component.tag)
+            end) or types.never
+    
+        else
+            return intersection_filter(input, input_tag, function(component)
+                return component == to_omit
+            end) or types.never
+        end
+    end)
 end
 
 --[=[
@@ -1400,101 +1454,133 @@ end
 
     @param input { [any]: type } -- The table to flatten.
 ]=]
-export type function FlattenTable(input: typeof(types.newtable()))
+export type function FlattenTable(input: type)
     local input_tag = input.tag
     if input_tag == "table" then return input end
     if input_tag == "union" then return union_from_components(components_map(input:components(), FlattenTable)) or types.never end
     if input_tag ~= "intersection" then return input end
 
-    -- TODO: refactor `FlattenTable` this so that nested intersections
-    -- are added to the output so we don't have to flatten the input.
-    local input: type = unions_and_intersections_flatten(input)
-    local components = input:components()
+    local components = components_map(input:components(), FlattenTable)
 
-    local output
-    local extra = { }
+    local output: typeof(types.newtable()), output_idx: number
+    local can_add_read_indexer, can_add_write_indexer
 
-    -- Finds the initial table in the intersection
-    local start_idx: number
+    local output_union_components = {}
+    local output_non_table_intersection_components = {}
+   
     for idx, component in components do
-        if component.tag == "table" then
-            output = component :: typeof(types.newtable())
-            start_idx = idx + 1
-            break
+        local component_tag = component.tag
 
-        else
-            table.insert(extra, component)
-        end
-    end
+        if component_tag == "union" then
+            for _, sub_component in Flatten(component):components() do
+                table.insert(
+                    output_union_components,
+                    sub_component
+                )
+            end
 
-    if not output then return intersection_from_components(extra) or types.never end
+        elseif component_tag == "intersection" then
+            local sub_components = Flatten(component):components()
+            local sub_output_idx
+            for sub_idx, sub_component in sub_components do
+                if sub_component.tag == "table" then
+                    output = sub_component :: typeof(types.newtable())
+                    can_add_read_indexer = not output:readindexer()
+                    can_add_write_indexer = not output:writeindexer()
 
-    local output_indexer = output:indexer()
-    -- TODO: add support for read and write indexers when available.
-    --[[local output_read_indexer = output:readindexer()
-    local output_write_indexer = output:writeindexer()]]
+                    sub_output_idx = sub_idx
+                    output_idx = idx
+                    break
+                end
 
-    for idx = start_idx, #components do
-        local component = components[idx]
-        if component.tag == "table" then
-            for key, value in component:properties() do
-                local value_read, value_write = value.read, value.write
+                table.insert(output_non_table_intersection_components, sub_component :: type)
+            end
 
-                local can_add_read_to_output = not output:readproperty(key)
-                local can_add_write_to_output = not output:writeproperty(key)
-
-                if can_add_read_to_output and can_add_write_to_output then
-                    if value_read == value_write then
-                        output:setproperty(key, value_read)
+            if sub_output_idx then
+                for sub_idx = sub_output_idx + 1, #sub_components do
+                    local sub_component = sub_components[sub_idx]
+                    if sub_component.tag == "table" then
+                        can_add_read_indexer, can_add_write_indexer = table_flatten_with(
+                            output, sub_component, can_add_read_indexer, can_add_write_indexer
+                        )
                     else
-                        output:setreadproperty(key, value_read)
-                        output:setwriteproperty(key, value_write)
+                        table.insert(output_non_table_intersection_components, sub_component :: type)
                     end
-                
-                elseif can_add_read_to_output then
-                    output:setreadproperty(key, value_read)
-
-                elseif can_add_write_to_output then
-                    output:setwriteproperty(key, value_write)
                 end
+                break
             end
 
-            if not output_indexer then
-                local component_indexer = component:indexer()
-                if component_indexer then
-                    output:setindexer(component_indexer.index, component_indexer.readresult)
-                    output_indexer = component_indexer
-                end
-            end
-            -- TODO: add support for read and write indexers when available.
-            --[[if not output_read_indexer then
-                local component_read_indexer = component:readindexer()
-                if component_read_indexer then
-                    output:setreadindexer(component_read_indexer.index, component_read_indexer.result)
-                    output_read_indexer = component_read_indexer
-                end
-            end
-            if not output_write_indexer then
-                local component_write_indexer = component:writeindexer()
-                if component_write_indexer then
-                    output:setwriteindexer(component_write_indexer.index, component_write_indexer.result)
-                    output_write_indexer = component_write_indexer
-                end
-            end]]
+        elseif component_tag == "table" then
+            output = component
+            can_add_read_indexer = not output:readindexer()
+            can_add_write_indexer = not output:writeindexer()
 
+            output_idx = idx
+            break
+            
         else
-            table.insert(extra, component)
+            table.insert(output_non_table_intersection_components, component)
         end
     end
 
-    if #extra ~= 0 then
-        table.insert(extra, output)
-        return intersection_from_components(extra) or types.never
+    if not output then return intersection_from_components(components) end
 
-    else
-        return output
+    local components_len = #components
+    for idx = components_len, output_idx + 1, -1 do
+        local component = components[idx]
+        local component_tag = component.tag
+
+        if component_tag == "union" then
+            for _, sub_component in Flatten(component):components() do
+                table.insert(
+                    output_union_components,
+                    sub_component
+                )
+            end
+
+        elseif component_tag == "intersection" then
+            for _, sub_component in Flatten(component):components() do
+                if sub_component.tag == "table" then
+                    can_add_read_indexer, can_add_write_indexer = table_flatten_with(
+                        output, sub_component, can_add_read_indexer, can_add_write_indexer
+                    )
+                else
+                    table.insert(output_non_table_intersection_components, sub_component :: type)
+                end
+            end
+        
+        elseif component_tag == "table" then
+            can_add_read_indexer, can_add_write_indexer = table_flatten_with(
+                output, component, can_add_read_indexer, can_add_write_indexer
+            )
+            
+        else
+            table.insert(output_non_table_intersection_components, component)
+        end
     end
+
+    if #output_union_components ~= 0 then
+        output = union_from_components(components_map(output_union_components, function(component)
+            if component.tag == "table" then
+                local output_copy = types.copy(output)
+                table_flatten_with(output_copy, component, can_add_read_indexer, can_add_write_indexer)
+                return output_copy
+            else
+                return types.intersectionof(output, component)
+            end
+        end))
+    end
+
+    if #output_non_table_intersection_components ~= 0 then
+        local output_components = output_non_table_intersection_components
+        table.insert(output_non_table_intersection_components, output :: type)
+
+        output = intersection_from_components(output_components)
+    end
+
+    return output
 end
+
 
 --[=[
     Removes duplicate types from union and intersection keys and values in the specified table.
@@ -1515,101 +1601,42 @@ export type function CleanTable(input: typeof(types.newtable()))
     for key, value in input:properties() do
         local value_read, value_write = value.read, value.write
 
-        local cleaned_key = Clean(key)
-
-        if cleaned_key ~= key then
-            input:setproperty(key, nil)
-        end
-
-        if value_read == value_write then
-            input:setproperty(cleaned_key, Clean(value_read))
-
-        else
-            input:setreadproperty(cleaned_key, Clean(value_read))
-            input:setwriteproperty(cleaned_key, Clean(value_write))
-        end
-    end
-
-    -- TODO: add support for read and write indexers when available.
-    local indexer = input:indexer()
-    if indexer then
-        local indexer_read_result = indexer.readresult
-        if indexer_read_result then
-            input:setindexer(Clean(indexer.index), Clean(indexer_read_result))
-        end
-    end
-
-    return input
-end
-
---[=[
-    Removes duplicate types from union and intersection keys in the specified table.
-
-    @param input { [any]: type } -- The table to clean.
-]=]
-export type function CleanTableKeys(input: typeof(types.newtable()))
-    local input_tag = input.tag
-    if input_tag == "union" then
-        return union_from_components(components_map(input:components(), CleanTableKeys)) or types.never
-
-    elseif input_tag == "intersection" then
-        return intersection_from_components(components_map(input:components(), CleanTableKeys)) or types.never
-    end
-
-    for key, value in input:properties() do
-        local cleaned_key = Clean(key)
-
-        if cleaned_key ~= key then
-            input:setproperty(key, nil)
-        end
-    end
-
-    -- TODO: add support for read and write indexers when available.
-    local indexer = input:indexer()
-    if indexer then
-        local indexer_read_result = indexer.readresult
-        if indexer_read_result then
-            input:setindexer(Clean(indexer.index), indexer_read_result)
-        end
-    end
-
-    return input
-end
-
---[=[
-    Removes duplicate types from union and intersection values in the specified table.
-
-    @param input { [any]: type } -- The table to clean.
-]=]
-export type function CleanTableValues(input: typeof(types.newtable()))
-    local input_tag = input.tag
-    if input_tag == "union" then
-        return union_from_components(components_map(input:components(), CleanTableValues)) or types.never
-
-    elseif input_tag == "intersection" then
-        return intersection_from_components(components_map(input:components(), CleanTableValues)) or types.never
-    end
-
-    assert_is(input, "input", input_tag, "table")
-
-    for key, value in input:properties() do
-        local value_read, value_write = value.read, value.write
-
         if value_read == value_write then
             input:setproperty(key, Clean(value_read))
 
         else
-            input:setreadproperty(key, Clean(value_read))
-            input:setwriteproperty(key, Clean(value_write))
+            if value_read then
+                input:setreadproperty(key, Clean(value_read))
+            end
+
+            if value_write then
+                input:setwriteproperty(key, Clean(value_write))
+            end
         end
     end
 
-    -- TODO: add support for read and write indexers when available.
     local indexer = input:indexer()
     if indexer then
-        local indexer_read_result = indexer.readresult
-        if indexer_read_result then
-            input:setindexer(indexer.index, Clean(indexer_read_result))
+        local indexer_read, indexer_write = indexer.readresult, indexer.writeresult
+
+        if indexer_read and indexer_write then
+            local cleaned_indexer_index = Clean(indexer.index)
+
+            if indexer_read == indexer_write then
+                input:setindexer(cleaned_indexer_index, Clean(indexer_read))
+            
+            else
+                input:setreadindexer(cleaned_indexer_index, Clean(indexer_read))
+                input:setwriteindexer(cleaned_indexer_index, Clean(indexer_write))
+            end
+
+        else
+            if indexer_read then
+                input:setreadindexer(Clean(indexer.index), Clean(indexer_read))
+
+            elseif indexer_write then
+                input:setwriteindexer(Clean(indexer.index), Clean(indexer_write))
+            end
         end
     end
 
@@ -1901,20 +1928,20 @@ end
     @param expect any -- The type to be compared.
     @param toBe any -- The type you want to compare `expect` to.
 ]=]
-export type function Expect(type_a: type, type_b: type)
-    if sort_type(type_a) ~= sort_type(type_b) then
-        local type_a_tag, type_b_tag = type_a.tag, type_b.tag
+export type function Expect(expect: type, to_be: type)
+    if sort_type(expect) ~= sort_type(to_be) then
+        local expect_tag, to_be_tag = expect.tag, to_be.tag
 
-        local type_a_name = if type_a_tag == "singleton" then type(type_a:value()) else type_a_tag
-        local type_b_name = if type_b_tag == "singleton" then type(type_b:value()) else type_b_tag
+        local expect_name = if expect_tag == "singleton" then type(expect:value()) else expect_tag
+        local to_be_name = if to_be_tag == "singleton" then type(to_be:value()) else to_be_tag
 
-        local error_msg_start = `\nExpected the {type_b_name} type below:{stringify_preview(type_b)}\n\n`
-        local error_msg_end = `But Got this {type_a_name} type instead:{stringify_preview(type_a)}`
+        local error_msg_start = `\nExpected the {to_be_name} type below:{stringify_preview(to_be)}\n\n`
+        local error_msg_end = `But Got this {expect_name} type instead:{stringify_preview(expect)}`
 
         error(`{error_msg_start}{error_msg_end}`)
     end
 
-    return type_a
+    return expect
 end
 
 export type function Stringify(input: type)
