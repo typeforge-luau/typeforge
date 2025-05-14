@@ -14,6 +14,11 @@ type function handle_negation<T>(input: type, callback: (input: type, input_tag:
     end
 end
 
+type function innermost_tag(input: type)
+    local input_tag = input.tag
+    return if input_tag == "negation" then input:inner().tag else input_tag
+end
+
 type function assert_is_msg(input: type, input_type: string, label: string, is: string)
     local error_msg_start = `\n'{label}' should be of type {is}`
 
@@ -1040,13 +1045,13 @@ end
     @param to_omit any -- The components / properties to omit.
 ]=]
 export type function Omit(input: type, to_omit: type)
-    local tag = input.tag
+    local input_tag = innermost_tag(input)
 
     return
-        if tag == "table" then
+        if input_tag == "table" then
             OmitTableByKeys(input, to_omit)
 
-        elseif tag == "intersection" then
+        elseif input_tag == "intersection" then
             if components_find_type(input:components(), "table") then
                 OmitTableByKeys(input, to_omit)
             else
@@ -1062,13 +1067,13 @@ end
     @param to_pick any -- The components / properties to pick.
 ]=]
 export type function Pick(input: type, to_pick: type)
-    local tag = input.tag
+    local input_tag = innermost_tag(input)
 
     return
-        if tag == "table" then
+        if input_tag == "table" then
             PickTableByKeys(input, to_pick)
 
-        elseif tag == "intersection" then
+        elseif input_tag == "intersection" then
             if components_find_type(input:components(), "table") then
                 PickTableByKeys(input, to_pick)
             else
@@ -1093,25 +1098,25 @@ end
     @param input any -- The type to clean.
 ]=]
 export type function Clean(input: type)
-    local tag = input.tag
+    local input_tag = innermost_tag(input)
 
     return
-        if tag == "table" then CleanTable(input)
+        if input_tag == "table" then CleanTable(input)
 
-        elseif tag == "union" then
+        elseif input_tag == "union" then
             union_from_components(components_clean_unions_and_intersections(
                 input:components(), types.newtable(), { },
-                tag, "intersection", union_from_components, intersection_from_components
+                input_tag, "intersection", union_from_components, intersection_from_components
             ))
 
-        elseif tag == "intersection" then
+        elseif input_tag == "intersection" then
             if components_find_type(input:components(), "table") then
                 CleanTable(input)
 
             else
                 intersection_from_components(components_clean_unions_and_intersections(
                     input:components(), types.newtable(), { },
-                    tag, "union", intersection_from_components, union_from_components
+                    input_tag, "union", intersection_from_components, union_from_components
                 ))
 
         else input
@@ -1127,24 +1132,24 @@ end
     @param to_omit any -- The components to omit.
 ]=]
 export type function OmitUnion(input: type, to_omit: type)
-    local input_tag = input.tag
-
-    if input_tag == "intersection" then
-        return intersection_from_components(components_map(input:components(), OmitUnion, to_omit))
-    end
+    return handle_negation(input, function(input: type, input_tag: string)
+        if input_tag == "intersection" then
+            return intersection_from_components(components_map(input:components(), OmitUnion, to_omit))
+        end
+        
+        if to_omit.tag == "union" then
+            local hashset, non_hashsettable = hashset_from_components(to_omit:components())
     
-    if to_omit.tag == "union" then
-        local hashset, non_hashsettable = hashset_from_components(to_omit:components())
-
-        return union_filter(input, input_tag, function(component): boolean
-            return hashset_has_type(hashset, non_hashsettable, component, component.tag)
-        end) or types.never
-
-    else
-        return union_filter(input, input_tag, function(component)
-            return component == to_omit
-        end) or types.never
-    end
+            return union_filter(input, input_tag, function(component): boolean
+                return hashset_has_type(hashset, non_hashsettable, component, component.tag)
+            end) or types.never
+    
+        else
+            return union_filter(input, input_tag, function(component)
+                return component == to_omit
+            end) or types.never
+        end
+    end)
 end
 
 --[=[
@@ -1154,24 +1159,24 @@ end
     @param to_pick any -- The components to pick.
 ]=]
 export type function PickUnion(input: type, to_pick: type)
-    local input_tag = input.tag
+    return handle_negation(input, function(input: type, input_tag: string)
+        if input_tag == "intersection" then
+            return intersection_from_components(components_map(input:components(), PickUnion, to_pick))
+        end
     
-    if input.tag == "intersection" then
-        return intersection_from_components(components_map(input:components(), PickUnion, to_pick))
-    end
-
-    if to_pick.tag == "union" then
-        local hashset, non_hashsettable = hashset_from_components(to_pick:components())
-
-        return union_filter(input, input_tag, function(component): boolean
-            return not hashset_has_type(hashset, non_hashsettable, component, component.tag)
-        end) or types.never
-
-    else
-        return union_filter(input, input_tag, function(component)
-            return component ~= to_pick
-        end) or types.never
-    end
+        if to_pick.tag == "union" then
+            local hashset, non_hashsettable = hashset_from_components(to_pick:components())
+    
+            return union_filter(input, input_tag, function(component): boolean
+                return not hashset_has_type(hashset, non_hashsettable, component, component.tag)
+            end) or types.never
+    
+        else
+            return union_filter(input, input_tag, function(component)
+                return component ~= to_pick
+            end) or types.never
+        end
+    end)
 end
 
 --[=[
@@ -1180,17 +1185,17 @@ end
     @param input any -- The union to flatten.
 ]=]
 export type function FlattenUnion(input: type)
-    local input_tag = input.tag
-
-    if input_tag == "intersection" then
-        return intersection_from_components(components_map(input:components(), FlattenUnion))
-    end
-
-    if input_tag == "union" then
-        return union_from_components(components_flatten(input:components(), "union")) or types.never
-    else
-        return input
-    end
+    return handle_negation(input, function(input: type, input_tag: string)
+        if input_tag == "intersection" then
+            return intersection_from_components(components_map(input:components(), FlattenUnion))
+        end
+    
+        if input_tag == "union" then
+            return union_from_components(components_flatten(input:components(), "union")) or types.never
+        else
+            return input
+        end
+    end)
 end
 
 --[=[
@@ -1199,20 +1204,20 @@ end
     @param input any -- The union to clean.
 ]=]
 export type function CleanUnion(input: type)
-    local input_tag = input.tag
-
-    if input_tag == "intersection" then
-        return intersection_from_components(components_map(input:components(), CleanUnion))
-    end
-
-    if input_tag == "union" then
-        return union_from_components(
-            components_clean(input:components(), "union", union_from_components, types.newtable(), { })
-        ) or types.never
-
-    else
-        return input
-    end
+    return handle_negation(input, function(input: type, input_tag: string)
+        if input_tag == "intersection" then
+            return intersection_from_components(components_map(input:components(), CleanUnion))
+        end
+    
+        if input_tag == "union" then
+            return union_from_components(
+                components_clean(input:components(), "union", union_from_components, types.newtable(), { })
+            ) or types.never
+    
+        else
+            return input
+        end
+    end)
 end
 ----------------------------------------------------------------------------------------
 
@@ -1251,26 +1256,26 @@ end
     @param to_pick any -- The components to pick.
 ]=]
 export type function PickIntersection(input: type, to_pick: type)
-    local input_tag = input.tag
-
-    if input.tag == "union" then
-        return union_from_components(components_map(input:components(), PickIntersection, to_pick))
-    end
-
-    assert_is(input, "input", input_tag, "intersection")
-
-    if to_pick.tag == "union" then
-        local hashset, non_hashsettable = hashset_from_components(to_pick:components())
-
-        return intersection_filter(input, input_tag, function(component): boolean
-            return not hashset_has_type(hashset, non_hashsettable, component, component.tag)
-        end) or types.never
-
-    else
-        return intersection_filter(input, input_tag, function(component)
-            return component ~= to_pick
-        end) or types.never
-    end
+    return handle_negation(input, function(input: type, input_tag: string)
+        if input_tag == "union" then
+            return union_from_components(components_map(input:components(), PickIntersection, to_pick))
+        end
+    
+        assert_is(input, "input", input_tag, "intersection")
+    
+        if to_pick.tag == "union" then
+            local hashset, non_hashsettable = hashset_from_components(to_pick:components())
+    
+            return intersection_filter(input, input_tag, function(component): boolean
+                return not hashset_has_type(hashset, non_hashsettable, component, component.tag)
+            end) or types.never
+    
+        else
+            return intersection_filter(input, input_tag, function(component)
+                return component ~= to_pick
+            end) or types.never
+        end
+    end)
 end
 
 --[=[
@@ -1279,19 +1284,19 @@ end
     @param input any -- The intersection to flatten.
 ]=]
 export type function FlattenIntersection(input: type)
-    local input_tag = input.tag
-
-    if input_tag == "union" then
-        return union_from_components(components_map(input:components(), FlattenIntersection)) or types.never
-    end
-
-    assert_is(input, "input", input_tag, "intersection")
-
-    if input_tag == "intersection" then
-        return intersection_from_components(components_flatten(input:components(), "intersection")) or types.never
-    else
-        return input
-    end
+    return handle_negation(input, function(input: type, input_tag: string)
+        if input_tag == "union" then
+            return union_from_components(components_map(input:components(), FlattenIntersection)) or types.never
+        end
+    
+        assert_is(input, "input", input_tag, "intersection")
+    
+        if input_tag == "intersection" then
+            return intersection_from_components(components_flatten(input:components(), "intersection")) or types.never
+        else
+            return input
+        end
+    end)
 end
 
 
@@ -1301,22 +1306,22 @@ end
     @param input any -- The intersection to clean.
 ]=]
 export type function CleanIntersection(input: type)
-    local input_tag = input.tag
-
-    if input_tag == "union" then
-        return union_from_components(components_map(input:components(), CleanIntersection)) or types.never
-    end
-
-    assert_is(input, "input", input_tag, "intersection")
-
-    if input_tag == "intersection" then
-        return intersection_from_components(
-            components_clean(input:components(), "intersection", intersection_from_components, types.newtable(), { })
-        ) or types.never
-
-    else
-        return input
-    end
+    return handle_negation(input, function(input: type, input_tag: string)
+        if input_tag == "union" then
+            return union_from_components(components_map(input:components(), CleanIntersection)) or types.never
+        end
+    
+        assert_is(input, "input", input_tag, "intersection")
+    
+        if input_tag == "intersection" then
+            return intersection_from_components(
+                components_clean(input:components(), "intersection", intersection_from_components, types.newtable(), { })
+            ) or types.never
+    
+        else
+            return input
+        end
+    end)
 end
 ----------------------------------------------------------------------------------------
 
@@ -1904,22 +1909,31 @@ end
 export type function Inspect(input: type)
     local input_tag = input.tag
 
-    if input_tag == "singleton" or is_primitive(input_tag) then return input end
+    if input_tag == "negation" then
+        return types.newtable({
+            [types.singleton("1")] = Inspect(input:inner()),
+            [types.singleton("kind")] = types.singleton("negation")
+        })
 
-    local output = types.newtable({
-        [types.singleton("kind")] = types.singleton(input_tag)
-    })
+    elseif input_tag == "table" or input_tag == "singleton" or is_primitive(input_tag) then
+        return input
 
-    for idx, component in input:components() do
-        local component_tag = component.tag
+    else
+        local output = types.newtable({
+            [types.singleton("kind")] = types.singleton(input_tag)
+        })
 
-        output:setproperty(
-            types.singleton(`{idx}`),
-            if component_tag == "union" or component_tag == "intersection" then Inspect(component) else component
-        )
+        for idx, component in input:components() do
+            local component_tag = component.tag
+
+            output:setproperty(
+                types.singleton(`{idx}`),
+                if component_tag == "union" or component_tag == "intersection" then Inspect(component) else component
+            )
+        end
+
+        return output
     end
-
-    return output
 end
 
 --[=[
@@ -1950,6 +1964,10 @@ end
 
 export type function StringifyPrint(input: type)
     print(Stringify(input))
+end
+
+export type function Negate(input: type)
+    return types.negationof(input)
 end
 ----------------------------------------------------------------------------------------
 
