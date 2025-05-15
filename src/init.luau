@@ -153,11 +153,16 @@ type function sort_type(input: type)
             if value_read == value_write then
                 input:setproperty(key, sort_type(value_read))
             else
-                input:setreadproperty(key, sort_type(value_read))
-                input:setwriteproperty(key, sort_type(value_write))
+                if value_read then
+                    input:setreadproperty(key, sort_type(value_read))
+                end
+                if value_write then
+                    input:setwriteproperty(key, sort_type(value_write))
+                end
             end
         end
 
+        -- TODO: add support for read and write indexers when available.
         local indexer = input:indexer()
         if indexer then
             input:setindexer(sort_type(indexer.index), sort_type(indexer.readresult))
@@ -1008,7 +1013,7 @@ type function table_filter_by_values(
     return input
 end
 
-type function table_map_values(
+type function table_map_values_deep(
     input: typeof(types.newtable()),
     callback: (input: type) -> type?
 )
@@ -1017,21 +1022,21 @@ type function table_map_values(
 
         if value_read == value_write then
             input:setproperty(key, callback(
-                if (value_read :: type).tag == "table" then table_map_values(value_read, callback)
+                if (value_read :: type).tag == "table" then table_map_values_deep(value_read, callback)
                 else value_read :: type
             ))
 
         else
             if value_read then
                 input:setreadproperty(key, callback(
-                    if value_read.tag == "table" then table_map_values(value_read, callback)
+                    if value_read.tag == "table" then table_map_values_deep(value_read, callback)
                     else value_read
                 ))
             end
 
             if value_write then
                 input:setwriteproperty(key, callback(
-                    if value_write.tag == "table" then table_map_values(value_write, callback)
+                    if value_write.tag == "table" then table_map_values_deep(value_write, callback)
                     else value_write
                 ))
             end
@@ -1045,23 +1050,67 @@ type function table_map_values(
 
         if indexer_read == indexer_write then
             table_set_indexer_or_remove(input, indexer_index, callback(
-                if (indexer_read :: type).tag == "table" then table_map_values(indexer_read, callback)
+                if (indexer_read :: type).tag == "table" then table_map_values_deep(indexer_read, callback)
                 else indexer_read :: type
             ))
 
         else
             if indexer_read then
                 table_set_read_indexer_or_remove(input, indexer_index, callback(
-                    if indexer_read.tag == "table" then table_map_values(indexer_read, callback)
+                    if indexer_read.tag == "table" then table_map_values_deep(indexer_read, callback)
                     else indexer_read
                 ))
             end
 
             if indexer_write then
                 table_set_read_indexer_or_remove(input, indexer_index, callback(
-                    if indexer_write.tag == "table" then table_map_values(indexer_write, callback)
+                    if indexer_write.tag == "table" then table_map_values_deep(indexer_write, callback)
                     else indexer_write
                 ))
+            end
+        end
+    end
+
+    return input
+end
+
+type function table_map_values_shallow(
+    input: typeof(types.newtable()),
+    callback: (input: type) -> type?
+)
+    for key, value in input:properties() do
+        local value_read, value_write = value.read, value.write
+
+        if value_read == value_write then
+            input:setproperty(key, callback(value_read :: type))
+
+        else
+            if value_read then
+                input:setreadproperty(key, callback(value_read))
+            end
+
+            if value_write then
+                input:setwriteproperty(key, callback(value_write))
+            end
+        end
+    end
+
+    local indexer = input:indexer()
+    if indexer then
+        local indexer_index = indexer.index
+        local indexer_read, indexer_write = indexer.readresult, indexer.writeresult
+
+        if indexer_read == indexer_write then
+            table_set_indexer_or_remove(input, indexer_index, callback(indexer_read))
+
+        else
+            if indexer_read then
+                table_set_read_indexer_or_remove(input, indexer_index, callback(indexer_read
+                ))
+            end
+
+            if indexer_write then
+                table_set_read_indexer_or_remove(input, indexer_index, callback(indexer_write))
             end
         end
     end
@@ -1701,7 +1750,7 @@ export type function Partial(input: typeof(types.newtable()))
 
     assert_is(input, "input", input_tag, "table")
 
-    return table_map_values(input, function(value)
+    return table_map_values_shallow(input, function(value)
         return types.optional(value)
     end)
 end
@@ -1724,7 +1773,7 @@ export type function Required(input: typeof(types.newtable()))
 
     local nil_singleton = types.singleton("nil")
 
-    return table_map_values(input, function(value)
+    return table_map_values_shallow(input, function(value)
         return non_optional(value, nil_singleton)
     end)
 end

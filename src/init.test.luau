@@ -630,10 +630,233 @@ type FlattenTable_TestU = t.Expect<
 >
 -------------------------------------------------------
 
--- FlattenTable ---------------------------------------
+-- CleanTable -----------------------------------------
+-- Test A: Cleaning a union property value.
 type CleanTable_TestA = t.Expect<
     t.CleanTable<{ hello: "world" | "hey" | "hey" }>,
     { hello: "world" | "hey" }
+>
+
+-- Test B: Cleaning a union indexer index.
+type CleanTable_TestB = t.Expect<
+    t.CleanTable<{ ["world" | "hey" | "hey"]: any }>,
+    { ["world" | "hey"]: any }
+>
+
+-- Test C: Cleaning a union indexer result.
+type CleanTable_TestC = t.Expect<
+    t.CleanTable<{ [any]: "world" | "hey" | "hey" }>,
+    { [any]: "world" | "hey" }
+>
+
+-- Test D: Cleaning a union indexer index and result.
+type CleanTable_TestD = t.Expect<
+    t.CleanTable<{ ["world" | "hey" | "hey"]: "world" | "hey" | "hey" }>,
+    { ["world" | "hey"]: "world" | "hey" }
+>
+
+-- Test E: Cleaning a intersection property value.
+type CleanTable_TestE = t.Expect<
+    t.CleanTable<{ hello: "world" & "hey" & "hey" }>,
+    { hello: "world" & "hey" }
+>
+
+-- Test F: Cleaning a intersection indexer index.
+type CleanTable_TestF = t.Expect<
+    t.CleanTable<{ ["world" & "hey" & "hey"]: any }>,
+    { ["world" & "hey"]: any }
+>
+
+-- Test G: Cleaning a intersection indexer result.
+type CleanTable_TestG = t.Expect<
+    t.CleanTable<{ [any]: "world" & "hey" & "hey" }>,
+    { [any]: "world" & "hey" }
+>
+
+-- Test H: Cleaning a intersection indexer index and result.
+type CleanTable_TestH = t.Expect<
+    t.CleanTable<{ ["world" & "hey" & "hey"]: "world" & "hey" & "hey" }>,
+    { ["world" & "hey"]: "world" & "hey" }
+>
+
+-- Test I: Cleaning a nested table.
+type CleanTable_TestI = t.Expect<
+    t.CleanTable<{
+        [{
+            [any]: "world" | "hey" | "hey"
+        }]: {
+            [any]: "world" & "hey" & "hey"
+        }
+    }>,
+    {
+        [{
+            [any]: "world" | "hey"
+        }]: {
+            [any]: "world" & "hey"
+        }
+    }
+>
+
+-- Test J: Cleaning a union of two tables.
+type CleanTable_TestJ = t.Expect<
+    t.CleanTable<{ hello: "world" & "world" & "hey" } | { foo: "bar" & "baz" & "bar" }>,
+    { hello: "world" & "hey" } | { foo: "bar" & "baz" }
+>
+
+-- Test K: Cleaning an intersection of two tables.
+type CleanTable_TestK = t.Expect<
+    t.CleanTable<{ hello: "world" & "world" & "hey" } & { foo: "bar" & "baz" & "bar" }>,
+    { hello: "world" & "hey" } & { foo: "bar" & "baz" }
+>
+
+-- Test L: Cleaning a table with negated types.
+type CleanTable_TestL = t.Expect<
+    t.CleanTable<{
+        [t.Negate<"world" & "hey" & "hey">]: t.Negate<"world" | "hey" | "hey">,
+        hello: t.Negate<"world" & "world">
+    }>,
+    {
+        [t.Negate<"world" & "hey">]: t.Negate<"world" | "hey">,
+        hello: t.Negate<"world">
+    }
+>
+-------------------------------------------------------
+
+-- Partial --------------------------------------------
+-- Test A: Makes a table partial.
+type Partial_TestA = t.Expect<
+    t.Partial<{ hello: "world", foo: "bar" }>,
+    { hello: "world"?, foo: "bar"? }
+>
+
+-- Test B: Makes a table (whose indexer is a table) partial.
+-- (index should not be affected by Partial).
+type Partial_TestB = t.Expect<
+    t.Partial<{ [{ hello: "world" }]: "foo" }>,
+    { [{ hello: "world" }]: "foo"? }
+>
+
+-- Test C: Makes a nested table partial,
+-- (nested tables should not be affected by Partial).
+type Partial_TestC = t.Expect<
+    t.Partial<{ [{ hello: "world" }]: { hello: "world" } }>,
+    { [{ hello: "world" }]: { hello: "world" }? }
+>
+
+-- Test D: Makes a union of two tables partial.
+type Partial_TestD = t.Expect<
+    t.Partial<{ hello: "world" } | { foo: "bar" }>,
+    { hello: "world"? } | { foo: "bar"? }
+>
+
+-- Test E: Makes an intersection of two tables partial.
+type Partial_TestE = t.Expect<
+    t.Partial<{ hello: "world" } & { foo: "bar" }>,
+    { hello: "world"? } & { foo: "bar"? }
+>
+-------------------------------------------------------
+
+-- Required -------------------------------------------
+-- Test A: Makes a table required.
+type Required_TestA = t.Expect<
+    t.Required<{ hello: "world"?, foo: "bar"? }>,
+    { hello: "world", foo: "bar" }
+>
+
+-- Test B: Makes a table (whose indexer is a table) required.
+-- (index should not be affected by Required).
+type Required_TestB = t.Expect<
+    t.Required<{ [{ hello: "world"? }]: "foo"? }>,
+    { [{ hello: "world"? }]: "foo" }
+>
+
+-- Test C: Makes a nested table required,
+-- (nested tables should not be affected by Required).
+type Required_TestC = t.Expect<
+    t.Required<{ [{ hello: "world"? }]: { hello: "world"? }? }>,
+    { [{ hello: "world"? }]: { hello: "world"? } }
+>
+
+-- Test D: Makes a union of two tables required.
+type Required_TestD = t.Expect<
+    t.Required<{ hello: "world"? } | { foo: "bar"? }>,
+    { hello: "world" } | { foo: "bar" }
+>
+
+-- Test E: Makes an intersection of two tables required.
+type Required_TestE = t.Expect<
+    t.Required<{ hello: "world"? } & { foo: "bar"? }>,
+    { hello: "world" } & { foo: "bar" }
+>
+-------------------------------------------------------
+
+-- ReadOnly -------------------------------------------
+-- Test A: Makes a table read only.
+type ReadOnly_TestA = t.Expect<
+    t.ReadOnly<{ hello: "world", foo: "bar" }>,
+    { read hello: "world", read foo: "bar" }
+>
+
+-- Test B: Makes a table (whose indexer is a table) read only.
+-- (index should not be affected by ReadOnly).
+-- TODO: read only indexers aren't supported yet.
+--[[type ReadOnly_TestB = t.Expect<
+    t.ReadOnly<{ [{ hello: "world" }]: "foo" }>,
+    { read [{ hello: "world" }]: "foo" }
+>]]
+
+-- Test C: Makes a nested table read only,
+-- (nested tables should not be affected by ReadOnly).
+type ReadOnly_TestC = t.Expect<
+    t.ReadOnly<{ hello: { hello: "world" } }>,
+    { read hello: { hello: "world" } }
+>
+
+-- Test D: Makes a union of two tables read only.
+type ReadOnly_TestD = t.Expect<
+    t.ReadOnly<{ hello: "world" } | { foo: "bar" }>,
+    { read hello: "world" } | { read foo: "bar" }
+>
+
+-- Test E: Makes an intersection of two tables read only.
+type ReadOnly_TestE = t.Expect<
+    t.ReadOnly<{ hello: "world" } & { foo: "bar" }>,
+    { read hello: "world" } & { read foo: "bar" }
+>
+-------------------------------------------------------
+
+-- ReadWrite -------------------------------------------
+-- Test A: Makes a table readable and writable.
+type ReadWrite_TestA = t.Expect<
+    t.ReadWrite<{ read hello: "world", foo: "bar" }>,
+    { hello: "world", foo: "bar" }
+>
+
+-- Test B: Makes a table (whose indexer is a table) readable and writable.
+-- (index should not be affected by ReadWrite).
+-- TODO: read only indexers aren't supported yet.
+--[[type ReadWrite_TestB = t.Expect<
+    t.ReadWrite<{ read [{ hello: "world" }]: "foo" }>,
+    { [{ hello: "world" }]: "foo" }
+>]]
+
+-- Test C: Makes a nested table readable and writable,
+-- (nested tables should not be affected by ReadWrite).
+type ReadWrite_TestC = t.Expect<
+    t.ReadWrite<{ read hello: { read hello: "world" } }>,
+    { hello: { read hello: "world" } }
+>
+
+-- Test D: Makes a union of two tables readable and writable.
+type ReadWrite_TestD = t.Expect<
+    t.ReadWrite<{ read hello: "world" } | { read foo: "bar" }>,
+    { hello: "world" } | { foo: "bar" }
+>
+
+-- Test E: Makes an intersection of two tables readable and writable.
+type ReadWrite_TestE = t.Expect<
+    t.ReadWrite<{ read hello: "world" } & { read foo: "bar" }>,
+    { hello: "world" } & { foo: "bar" }
 >
 -------------------------------------------------------
 -------------------------------------------------------------------------------------------------------
