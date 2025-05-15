@@ -406,17 +406,25 @@ type function hashset_has_type(
 end
 
 type function hashset_from_components(input: { [number]: type })
-    -- Only singletons can be can be stored in a hashset. Other types 
-    -- will be returned in an array-like table (non_hashsettable).
-    local hashset, non_hashsettable = types.newtable(), { }
+    local hashset = types.newtable()
 
-    for _, value in input do
-        hashset_insert(hashset, non_hashsettable, value, value.tag)
+    local input_len = #input
+
+    for idx = input_len, 1, -1 do
+        local component = input[idx]
+
+        if hashset_can_insert(component.tag) then
+            hashset:setproperty(component, types.never)
+            input_len = table_value_swap_remove(input, input_len, idx)
+        end
     end
 
-    return hashset, non_hashsettable
+    -- The input table should now only contain the 
+    -- components that could not be inserted into the hashset.
+    return hashset, input
 end
 ----------------------------------------------------------------------------------------
+
 
 --> Components Helpers -----------------------------------------------------------------
 type function components_filter(
