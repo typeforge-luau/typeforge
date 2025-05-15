@@ -135,7 +135,7 @@ type function sort_type(input: type)
 
             return 
                 if a_tag ~= b_tag then a_tag < b_tag
-                elseif a_tag == "table" or a_tag == "union" or a_tag == "intersection" then Stringify(a) > Stringify(b)
+                elseif a_tag == "table" or a_tag == "union" or a_tag == "intersection" then stringify(a) > stringify(b)
                 elseif a_tag ~= "singleton" then false
                 else (a:value() :: any) < (b:value() :: any)
         end)
@@ -212,9 +212,9 @@ type function sort_type(input: type)
 end
 ----------------------------------------------------------------------------------------
 
---> Pretty Print Helpers ---------------------------------------------------------------
+--> Stringify Helpers ------------------------------------------------------------------
 type function stringify_preview(input: type)
-    return `\n> {string.gsub(Stringify(input), "\n", "\n> ")}`
+    return `\n> {string.gsub(stringify(input), "\n", "\n> ")}`
 end
 
 type function stringify_table(
@@ -309,24 +309,24 @@ type function stringify_function(input: typeof(types.newfunction()))
 
         local params_head_len = #params_head
         for idx = 1, params_head_len - 1 do
-            stringified_params ..= `{Stringify(params_head[idx])}, `
+            stringified_params ..= `{stringify(params_head[idx])}, `
         end
-        stringified_params ..= `{Stringify(params_head[params_head_len])}`
+        stringified_params ..= `{stringify(params_head[params_head_len])}`
 
         if params_tail then
             local params_tail_tag = params_tail.tag
             if params_tail_tag == "union" or params_tail_tag == "intersection" then
-                stringified_params ..= `, ...({Stringify(params_tail)}))`
+                stringified_params ..= `, ...({stringify(params_tail)}))`
             else
-                stringified_params ..= `, ...{Stringify(params_tail)})`
+                stringified_params ..= `, ...{stringify(params_tail)})`
             end
         end
     elseif params_tail then
         local params_tail_tag = params_tail.tag
         if params_tail_tag == "union" or params_tail_tag == "intersection" then
-            stringified_params = `...({Stringify(params_tail)})`
+            stringified_params = `...({stringify(params_tail)})`
         else
-            stringified_params = `...{Stringify(params_tail)}`
+            stringified_params = `...{stringify(params_tail)}`
         end
     end
 
@@ -340,25 +340,25 @@ type function stringify_function(input: typeof(types.newfunction()))
 
         returns_head_len = #returns_head
         for idx = 1, returns_head_len - 1 do
-            stringified_returns ..= `{Stringify(returns_head[idx])}, `
+            stringified_returns ..= `{stringify(returns_head[idx])}, `
         end
-        stringified_returns ..= `{Stringify(returns_head[returns_head_len])}`
+        stringified_returns ..= `{stringify(returns_head[returns_head_len])}`
 
         if returns_tail then
             local returns_tail_tag = returns_tail.tag
             if returns_tail_tag == "union" or returns_tail_tag == "intersection" then
-                stringified_returns ..= `, ...({Stringify(returns_tail)}))`
+                stringified_returns ..= `, ...({stringify(returns_tail)}))`
             else
-                stringified_returns ..= `, ...{Stringify(returns_tail)})`
+                stringified_returns ..= `, ...{stringify(returns_tail)})`
             end
         end
 
     elseif returns_tail then
         local returns_tail_tag = returns_tail.tag
         if returns_tail_tag == "union" or returns_tail_tag == "intersection" then
-            stringified_returns = `...({Stringify(returns_tail)})`
+            stringified_returns = `...({stringify(returns_tail)})`
         else
-            stringified_returns = `...{Stringify(returns_tail)}`
+            stringified_returns = `...{stringify(returns_tail)}`
         end
     end
 
@@ -402,6 +402,10 @@ type function stringify_main(
     return
         if input_type == "string" then `"{input}"`
         else tostring(input) 
+end
+
+type function stringify(input: type)
+    return stringify_main(input, 1)
 end
 ----------------------------------------------------------------------------------------
 
@@ -1158,6 +1162,14 @@ end
 
     @param input any -- The type to omit from.
     @param to_omit any -- The components / properties to omit.
+
+    @example
+    type Result = Omit<
+        "hello" | "world" | "foo" | "bar",
+        "world" | "bar"
+    >
+
+    -- type Result = "foo" | "hello"
 ]=]
 export type function Omit(input: type, to_omit: type)
     local input_tag = innermost_tag(input)
@@ -1184,6 +1196,14 @@ end
 
     @param input any -- The type to pick from.
     @param to_pick any -- The components / properties to pick.
+
+    @example
+    type Result = Pick<
+        "hello" & "world" & "foo" & "bar",
+        "world" | "bar"
+    >
+
+    -- type Result = "bar" & "world"
 ]=]
 export type function Pick(input: type, to_pick: type)
     local input_tag = innermost_tag(input)
@@ -1210,6 +1230,19 @@ end
     Combines an intersection of tables into one consolidated table whilst preserving semantics.
 
     @param input any -- The type to flatten.
+
+    @example
+    type Result = Flatten<({ hello: "world" } & ({ foo: "bar" } | { lol: "kek" }))>
+
+    --[[
+        type Result = {
+            foo: "bar",
+            hello: "world"
+        } | {
+            hello: "world",
+            lol: "kek"
+        }
+    ]]
 ]=]
 export type function Flatten(input: type)
     return handle_negation(input, function(input: type)
@@ -1221,6 +1254,19 @@ end
     Removes duplicate components / properties from a type.
 
     @param input any -- The type to clean.
+
+    @example
+    type Result = Clean<{
+        age: number | number,
+        [boolean]: boolean | boolean
+    }>
+
+    --[[
+        type Result = {
+            [boolean]: boolean,
+            age: number
+        }
+    ]]  
 ]=]
 export type function Clean(input: type)
     return handle_negation(input, function(input: type, input_tag: string)
@@ -1251,13 +1297,20 @@ export type function Clean(input: type)
 end
 ----------------------------------------------------------------------------------------
 
-
 --> Union Types ------------------------------------------------------------------------
 --[=[
     Returns a subset of a union without specified components.
 
     @param input any -- The union to omit from.
     @param to_omit any -- The components to omit.
+
+    @example
+    type Result = OmitUnion<
+        "hello" | string | "world",
+        "world"
+    >
+
+    -- type Result = "hello" | string
 ]=]
 export type function OmitUnion(input: type, to_omit: type)
     return handle_negation(input, function(input: type, input_tag: string)
@@ -1285,6 +1338,14 @@ end
 
     @param input any -- The union to pick from.
     @param to_pick any -- The components to pick.
+
+    @example
+    type Result = PickUnion<
+        "hello" | string | "world",
+        "world"
+    >
+
+    -- type Result = "world"
 ]=]
 export type function PickUnion(input: type, to_pick: type)
     return handle_negation(input, function(input: type, input_tag: string)
@@ -1308,9 +1369,14 @@ export type function PickUnion(input: type, to_pick: type)
 end
 
 --[=[
-    Combines nested unions into one union.
+    Recursively combines nested unions into one union.
 
     @param input any -- The union to flatten.
+
+    @example
+    type Result = FlattenUnion<"foo" | ("hello" | ("world" | "lol"))>
+
+    -- type Result = "foo" | "hello" | "lol" | "world"
 ]=]
 export type function FlattenUnion(input: type)
     return handle_negation(input, function(input: type, input_tag: string)
@@ -1330,6 +1396,11 @@ end
     Removes duplicate types from a union.
 
     @param input any -- The union to clean.
+
+    @example
+    type Result = CleanUnion<"hello" | string | "world" | string | "foo" | "hello">
+
+    -- type Result = "foo" | "hello" | "world" | string
 ]=]
 export type function CleanUnion(input: type)
     return handle_negation(input, function(input: type, input_tag: string)
@@ -1355,6 +1426,14 @@ end
 
     @param input any -- The intersection to omit from.
     @param to_omit any -- The components to omit.
+
+    @example
+    type Result = OmitIntersection<
+        "hello" & string & "world",
+        "world"
+    >
+
+    -- type Result = "hello" & string
 ]=]
 export type function OmitIntersection(input: type, to_omit: type)
     return handle_negation(input, function(input: type, input_tag: string)
@@ -1382,6 +1461,14 @@ end
 
     @param input any -- The intersection to pick from.
     @param to_pick any -- The components to pick.
+
+    @example
+    type Result = PickIntersection<
+        "hello" & string & "world",
+        "world"
+    >
+
+    -- type Result = "world"
 ]=]
 export type function PickIntersection(input: type, to_pick: type)
     return handle_negation(input, function(input: type, input_tag: string)
@@ -1410,6 +1497,11 @@ end
     Combines nested intersections into one intersection.
 
     @param input any -- The intersection to flatten.
+
+    @example
+    type Result = FlattenIntersection<"foo" & ("hello" & ("world" & "lol"))>
+
+    -- type Result = "foo" & "hello" & "lol" & "world"
 ]=]
 export type function FlattenIntersection(input: type)
     return handle_negation(input, function(input: type, input_tag: string)
@@ -1429,11 +1521,15 @@ export type function FlattenIntersection(input: type)
     end)
 end
 
-
 --[=[
     Removes duplicate types from an intersection.
 
     @param input any -- The intersection to clean.
+
+    @example
+    type Result = CleanIntersection<"hello" & string & "world" & string & "foo" & "hello">
+
+    -- type Result = "foo" & "hello" & "world" & string
 ]=]
 export type function CleanIntersection(input: type)
     return handle_negation(input, function(input: type, input_tag: string)
@@ -1461,6 +1557,11 @@ end
 
     @param input { [any]: type } -- The table to omit from.
     @param to_omit any -- The values of the properties to omit.
+
+    @example
+    type Result = OmitTableByKeys<{ hello: string, foo: "bar", bar: number }, "hello" | "foo">
+
+    -- type Result = type Result = { bar: number }
 ]=]
 export type function OmitTableByKeys(input: typeof(types.newtable()), to_omit: type)
     local input_tag = input.tag
@@ -1493,6 +1594,11 @@ end
 
     @param input { [any]: type } -- The table to omit from.
     @param to_omit any -- The values of the properties to omit.
+
+    @example
+    type Result = OmitTableByValues<{ hello: string, foo: "bar", bar: number }, "bar" | string>
+
+    -- type Result = type Result = { bar: number }
 ]=]
 export type function OmitTableByValues(input: typeof(types.newtable()), to_omit: type)
     local input_tag = input.tag
@@ -1525,6 +1631,11 @@ end
 
     @param input { [any]: type } -- The table to pick from.
     @param to_pick any -- The keys of the properties to pick.
+
+    @example
+    type Result = PickTableByKeys<{ hello: string, foo: "bar", bar: number }, "hello" | "foo">
+
+    -- type Result = type Result = { foo: "bar", hello: string }
 ]=]
 export type function PickTableByKeys(input: typeof(types.newtable()), to_pick: type)
     local input_tag = input.tag
@@ -1557,6 +1668,11 @@ end
 
     @param input { [any]: type } -- The table to pick from.
     @param to_pick any -- The values of the properties to pick.
+
+    @example
+    type Result = PickTableByValues<{ hello: string, foo: "bar", bar: number }, "bar" | string>
+
+    -- type Result = type Result = { foo: "bar", hello: string }
 ]=]
 export type function PickTableByValues(input: typeof(types.newtable()), to_pick: type)
     local input_tag = input.tag
@@ -1588,6 +1704,20 @@ end
     Combines an intersection of tables into one consolidated table whilst preserving semantics.
 
     @param input { [any]: type } -- The table to flatten.
+
+    @example
+    type Result = FlattenTable<
+        { name: string, salary: number } &
+        { kind: "employee" }
+    >
+
+    --[[
+        type Result = {
+            name: string,
+            salary: number,
+            kind: "employee"
+        }
+    ]]
 ]=]
 export type function FlattenTable(input: type)
     local input_tag = input.tag
@@ -1721,6 +1851,11 @@ end
     Removes duplicate types from union and intersection keys and values in the specified table.
 
     @param input { [any]: type } -- The table to clean.
+
+    @example
+    type Result = TableClean<{ name: string | string, salary: number }>
+
+    -- type Result = { name: string, salary: number }
 ]=]
 export type function CleanTable(input: typeof(types.newtable()))
     local input_tag = input.tag
@@ -1782,6 +1917,11 @@ end
     Makes every property in a table optional.
 
     @param input { [any]: type } -- The table to make partial.
+
+    @example
+    type Result = Partial<{ hello: "world", foo: "bar" }>
+
+    -- type Result = { foo: "bar"?, hello: "world"? }
 ]=]
 export type function Partial(input: typeof(types.newtable()))
     local input_tag = input.tag
@@ -1803,6 +1943,11 @@ end
     Makes every property in a table required.
 
     @param input { [any]: type } -- The table to make required.
+
+    @example
+    type Result = Required<{ hello: "world"?, foo: "bar"? }>
+
+    -- type Result = { foo: "bar", hello: "world" }
 ]=]
 export type function Required(input: typeof(types.newtable()))
     local input_tag = input.tag
@@ -1826,6 +1971,11 @@ end
     Makes every property in a table read only.
 
     @param input { [any]: type } -- The table to make read only.
+
+    @example
+    type Result = ReadOnly<{ hello: "world", foo: "bar" }>
+
+    -- type Result = { read foo: "bar", read hello: "world" }
 ]=]
 export type function ReadOnly(input: typeof(types.newtable()))
     local input_tag = input.tag
@@ -1853,6 +2003,11 @@ end
     Makes every property in a table read / write.
 
     @param input { [any]: type } -- The table to make read / write.
+
+    @example
+    type Result = ReadWrite<{ read hello: "world", foo: "bar" }>
+
+    -- type Result = { foo: "bar", hello: "world" }
 ]=]
 export type function ReadWrite(input: typeof(types.newtable()))
     local input_tag = input.tag
@@ -1884,9 +2039,14 @@ end
 
 --> Function Types ---------------------------------------------------------------------
 --[=[
-    Flattens unions, intersections, tables inside function param and return types.
+    Flattens unions, intersections and tables inside function parameter and return types.
 
     @param input (...any) -> (...any) -- The function to flatten.
+
+    @example
+    type Result = FlattenFunction<(string | (number | boolean)) -> (any & (boolean & number))>
+
+    -- type Result = (boolean | number | string) -> any & boolean & number
 ]=]
 export type function FlattenFunction(input: typeof(types.newfunction()))
     local input_tag = input.tag
@@ -1936,6 +2096,11 @@ end
     Removes duplicate components / properties from function param and return types.
 
     @param input (...any) -> (...any) -- The function to clean.
+
+    @example
+    type Result = CleanFunction<(number, string | string | boolean) -> any | any>
+
+    -- type Result = (number, boolean | string) -> any
 ]=]
 export type function CleanFunction(input: typeof(types.newfunction()))
     local input_tag = input.tag
@@ -1985,6 +2150,18 @@ end
     Gets the parameters for a function.
 
     @param input (...any) -> (...any) -- The function to get params for.
+
+    @example
+    type Result = Params<(number, string, boolean, ...{ any }) -> any>
+
+    --[[
+        type Result = {
+            1: number,
+            2: string,
+            3: boolean,
+            tail: {any}
+        }
+    ]]
 ]=]
 export type function Params(input: typeof(types.newfunction()))
     local input_tag = input.tag
@@ -2019,6 +2196,11 @@ end
     Gets the return types for a function.
 
     @param input (...any) -> (...any) -- The function to get return types for.
+
+    @example
+    type Result = Returns<() -> (string, number)>
+
+    -- type Result = { 1: string, 2: number }
 ]=]
 export type function Returns(input: typeof(types.newfunction()))
     local input_tag = input.tag
@@ -2055,6 +2237,21 @@ end
     returns the inputted type but with unions, intersections and negations turned into tables so they can be inspected / debugged better.
 
     @param input any -- The type to be inspected.
+
+    @example
+    type Result = Inspect<"hello" | ("world" & string)>
+
+    --[[
+        type Result = {
+            1: "hello",
+            2: {
+                1: "world",
+                2: string,
+                kind: "intersection"
+            },
+            kind: "union"
+        }
+    ]]
 ]=]
 export type function Inspect(input: type)
     local input_tag = input.tag
@@ -2091,6 +2288,25 @@ end
 
     @param expect any -- The type to be compared.
     @param toBe any -- The type you want to compare `expect` to.
+
+    @example
+    type test = Expect<
+        { foo: "bar" } & { hello: "world" },
+        (string, boolean) -> ...any
+    >
+
+    --[[
+        TypeError: 'Expect' type function errored at runtime: [string "Expect"]:2295: 
+        Expected the function type below:
+        > (string, boolean) -> (...any)
+
+        But Got this intersection type instead:
+        > {
+        >     foo: "bar"
+        > } & {
+        >     hello: "world"
+        > }
+    ]]
 ]=]
 export type function Expect(expect: type, to_be: type)
     if sort_type(expect) ~= sort_type(to_be) then
@@ -2109,30 +2325,15 @@ export type function Expect(expect: type, to_be: type)
 end
 
 --[=[
-    Turns a type into a string representation.
-    TEMPORARY: This type function will be removed once the types get a `__tostring` metamethod (see issue `1667`).
-
-    @param input any -- The type to stringify.
-]=]
-export type function Stringify(input: type)
-    return stringify_main(input, 1)
-end
-
---[=[
-    Turns a type into a string representation and prints the result.
-    TEMPORARY: This type function will be removed once the types get a `__tostring` metamethod (see issue `1667`).
-
-    @param input any -- The type to stringify.
-]=]
-export type function StringifyPrint(input: type)
-    print(Stringify(input))
-end
-
---[=[
     Negates a type.
     TEMPORARY: This type function will be removed once luau gets negation syntax (see `negation-types` RFC).
 
     @param input any -- The type to stringify.
+
+    @example
+    type Result = Negate<string>
+
+    -- type Result = ~string
 ]=]
 export type function Negate(input: type)
     return types.negationof(input)
