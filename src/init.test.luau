@@ -7,8 +7,146 @@ type function set_indexer(input: typeof(types.newtable()), index: type, result: 
     return input
 end
 
-
 --> Core ----------------------------------------------------------------------------------------------
+-- Omit -----------------------------------------------
+-- Test A: Omits a union.
+type Omit_TestA = t.Expect<
+    t.Omit<string | number | "foo" | "bar", string>,
+    number | "foo" | "bar"
+>
+
+-- Test B: Omits an intersection.
+type Omit_TestB = t.Expect<
+    t.Omit<string & number & "foo" & "bar", string>,
+    number & "foo" & "bar"
+>
+
+-- Test C: Omits a table.
+type Omit_TestC = t.Expect<
+    t.Omit<{ hello: "world", foo: "bar" }, "foo">,
+    { hello: "world" }
+>
+
+-- Test D: Omits a union of tables.
+type Omit_TestD = t.Expect<
+    t.Omit<{ hello: "world", foo: "bar" } | { lol: "kek", one: "two" }, "one" | "hello">,
+    { foo: "bar" } | { lol: "kek" }
+>
+
+-- Test E: Omits an intersection of tables.
+type Omit_TestE = t.Expect<
+    t.Omit<{ hello: "world", foo: "bar" } & { lol: "kek", one: "two" }, "one" | "hello">,
+    { foo: "bar" } & { lol: "kek" }
+>
+-------------------------------------------------------
+
+-- Pick -----------------------------------------------
+-- Test A: Picks a union.
+type Pick_TestA = t.Expect<
+    t.Pick<string | number | "foo" | "bar", string>,
+    string
+>
+
+-- Test B: Picks an intersection.
+type Pick_TestB = t.Expect<
+    t.Pick<string & number & "foo" & "bar", string>,
+    string
+>
+
+-- Test C: Picks a table.
+type Pick_TestC = t.Expect<
+    t.Pick<{ hello: "world", foo: "bar" }, "foo">,
+    { foo: "bar" }
+>
+
+-- Test D: Picks a union of tables.
+type Pick_TestD = t.Expect<
+    t.Pick<{ hello: "world", foo: "bar" } | { lol: "kek", one: "two" }, "one" | "hello">,
+    { hello: "world" } | { one: "two" }
+>
+
+-- Test E: Picks an intersection of tables.
+type Pick_TestE = t.Expect<
+    t.Pick<{ hello: "world", foo: "bar" } & { lol: "kek", one: "two" }, "one" | "hello">,
+    { hello: "world" } & { one: "two" }
+>
+-------------------------------------------------------
+
+-- Flatten --------------------------------------------
+-- Test A: Flattens a union.
+type Flatten_TestA = t.Expect<
+    t.Flatten<"foo" | ("bar" | ("baz" | "lol" | "kek"))>,
+    "foo" | "bar" | "baz" | "lol" | "kek"
+>
+
+-- Test B: Flattens an intersection.
+type Flatten_TestB = t.Expect<
+    t.Flatten<"foo" & ("bar" & ("baz" & "lol" & "kek"))>,
+    "foo" & "bar" & "baz" & "lol" & "kek"
+>
+
+-- Test C: Flattens a function.
+type Flatten_TestC = t.Expect<
+    t.Flatten<("hello" | ("world" | "hey")) -> ()>,
+    ("hello" | "world" | "hey") -> ()
+>
+
+-- Test D: Flattens a table.
+type Flatten_TestD = t.Expect<
+    t.Flatten<{ hello: "world" } & { foo: "bar" }>,
+    { hello: "world", foo: "bar" }
+>
+
+-- Test E: Flattens a union of tables.
+type Flatten_TestE = t.Expect<
+    t.Flatten<{ hello: "foo" } | { world: "bar" }>,
+    { hello: "foo" } | { world: "bar" }
+>
+
+-- Test F: Flattens an intersection of tables.
+type Flatten_TestF = t.Expect<
+    t.Flatten<{ hello: "foo" } & { world: "bar" }>,
+    { hello: "foo", world: "bar" }
+>
+-------------------------------------------------------
+
+-- Clean ----------------------------------------------
+-- Test A: Cleans a union.
+type Clean_TestA = t.Expect<
+    t.Clean<"foo" | "bar" | "foo" | "kek" | "bar" | "lol" | "one">,
+    "foo" | "bar" | "kek" | "lol" | "one"
+>
+
+-- Test B: Clean an intersection.
+type Clean_TestB = t.Expect<
+   t.Clean<"foo" & "bar" & "foo" & "kek" & "bar" & "lol" & "one">,
+    "foo" & "bar" & "kek" & "lol" & "one"
+>
+
+-- Test C: Cleans a function.
+type Clean_TestC = t.Expect<
+    t.Clean<("foo" | "bar" | "foo" | "kek" | "bar" | "lol" | "one") -> ()>,
+    ("foo" | "bar" | "kek" | "lol" | "one") -> ()
+>
+
+-- Test D: Cleans a table.
+type Clean_TestD = t.Expect<
+    t.Clean<{ hello: "foo" | "bar" | "foo" | "kek" | "bar" | "lol" | "one" }>,
+    { hello: "foo" | "bar" | "kek" | "lol" | "one" }
+>
+
+-- Test E: Cleans a union of tables.
+type Clean_TestE = t.Expect<
+    t.Clean<{ hello: "foo" | "bar" | "foo" } | { foo: "kek" | "bar" | "lol" | "bar" }>,
+    { hello: "foo" | "bar" } | { foo: "kek" | "bar" | "lol" }
+>
+
+-- Test F: Cleans an intersection of tables.
+type Clean_TestF = t.Expect<
+    t.Clean<{ hello: "foo" | "bar" | "foo" } & { foo: "kek" | "bar" | "lol" | "bar" }>,
+    { hello: "foo" | "bar" } & { foo: "kek" | "bar" | "lol" }
+>
+-------------------------------------------------------
 -------------------------------------------------------------------------------------------------------
 
 --> Union ---------------------------------------------------------------------------------------------
@@ -89,7 +227,7 @@ type PickUnion_TestF = t.Expect<
 -------------------------------------------------------
 
 -- FlattenUnion ---------------------------------------
--- Test A: Flattens a union of two unions.
+-- Test A: Flattens a union of unions.
 type FlattenUnion_TestA = t.Expect<
     t.FlattenUnion<(string | "foo") | (number | "bar")>,
     string | "foo" | number | "bar"
@@ -101,7 +239,7 @@ type FlattenUnion_TestB = t.Expect<
     "hello" | "lol" | "kek" | "food"
 >
 
--- Test C: Flattens an intersection of two nested unions.
+-- Test C: Flattens an intersection of nested unions.
 type FlattenUnion_TestC = t.Expect<
     t.FlattenUnion<(string | ("foo" | "lol")) & (number | ("bar" | "world"))>,
     (string | "foo" | "lol") & (number | "bar" | "world")
@@ -232,7 +370,7 @@ type PickIntersection_TestF = t.Expect<
 -------------------------------------------------------
 
 -- FlattenIntersection --------------------------------
--- Test A: Flattens an intersection of two intersections.
+-- Test A: Flattens an intersection of intersections.
 type FlattenIntersection_TestA = t.Expect<
     t.FlattenIntersection<((string & "foo") & (number & "bar"))>,
     string & "foo" & number & "bar"
@@ -244,7 +382,7 @@ type FlattenIntersection_TestB = t.Expect<
     "hello" & "lol" & "kek" & "food"
 >
 
--- Test C: Flattens a union of two nested intersections.
+-- Test C: Flattens a union of nested intersections.
 type FlattenIntersection_TestC = t.Expect<
     t.FlattenIntersection<(string & ("foo" & "lol")) | (number & ("bar" & "world"))>,
     (string & "foo" & "lol") | (number & "bar" & "world")
@@ -335,13 +473,13 @@ type OmitTableByKeys_TestF = t.Expect<
     set_indexer<{ Name: string }, string | "hello" | "lol", any>
 >
 
--- Test G: Picking a property from an intersection of two tables.
+-- Test G: Picking a property from an intersection of tables.
 type OmitTableByKeys_TestG = t.Expect<
     t.OmitTableByKeys<{ hello: "world" } & { foo: "bar" }, "hello">,
     { } & { foo: "bar" }
 >
 
--- Test H: Omitting two properties from an intersection of two tables where each component to be picked exists in a different table.
+-- Test H: Omitting two properties from an intersection of tables where each component to be picked exists in a different table.
 type OmitTableByKeys_TestH = t.Expect<
     t.OmitTableByKeys<{ hello: "world" } & { foo: "bar" }, "hello" | "foo">,
     { } & { }
@@ -385,13 +523,13 @@ type OmitTableByValues_TestF = t.Expect<
     { [any]: string | "hello" | "lol" }
 >
 
--- Test G: Omitting a property by value from an intersection of two tables.
+-- Test G: Omitting a property by value from an intersection of tables.
 type OmitTableByValues_TestG = t.Expect<
     t.OmitTableByValues<{ hello: "world" } & { foo: "bar" }, "world">,
     { } & { foo: "bar" }
 >
 
--- Test H: Omitting 2 properties by values from an intersection of two tables where each component to be picked exists in a different table.
+-- Test H: Omitting 2 properties by values from an intersection of tables where each component to be picked exists in a different table.
 type OmitTableByValues_TestH = t.Expect<
     t.OmitTableByValues<{ hello: "world" } & { foo: "bar" }, "world" | "bar">,
     { } & { }
@@ -435,13 +573,13 @@ type PickTableByKeys_TestF = t.Expect<
     set_indexer<{ Age: number }, "Age", any>
 >
 
--- Test G: Picking a property from an intersection of two tables.
+-- Test G: Picking a property from an intersection of tables.
 type PickTableByKeys_TestG = t.Expect<
     t.PickTableByKeys<{ hello: "world" } & { foo: "bar" }, "hello">,
     { hello: "world" } & { }
 >
 
--- Test H: Picking 2 properties from an intersection of two tables where each component to be picked exists in a different table.
+-- Test H: Picking 2 properties from an intersection of tables where each component to be picked exists in a different table.
 type PickTableByKeys_TestH = t.Expect<
     t.PickTableByKeys<{ hello: "world" } & { foo: "bar" }, "hello" | "foo">,
     { hello: "world" } & { foo: "bar" }
@@ -485,13 +623,13 @@ type PickTableByValues_TestF = t.Expect<
     set_indexer<{ field: "Age" }, any, "Age">
 >
 
--- Test G: Picking a property by value from an intersection of two tables.
+-- Test G: Picking a property by value from an intersection of tables.
 type PickTableByValues_TestG = t.Expect<
     t.PickTableByValues<{ hello: "world" } & { foo: "bar" }, "world">,
     { hello: "world" } & { }
 >
 
--- Test H: Picking 2 properties by values from an intersection of two tables where each component to be picked exists in a different table.
+-- Test H: Picking 2 properties by values from an intersection of tables where each component to be picked exists in a different table.
 type PickTableByValues_TestH = t.Expect<
     t.PickTableByValues<{ hello: "world" } & { foo: "bar" }, "world" | "bar">,
     { hello: "world" } & { foo: "bar" }
@@ -520,7 +658,6 @@ type FlattenTable_TestC = t.Expect<
 
 -- TestD: Flattening 1 table with a nested union of non-table types.
 type FlattenTable_TestD = t.Expect<
-    -- FlattenTable<(({ hello: "world" } | string) & { foo: "bar" })>,
     t.FlattenTable<{ hello: "world", foo: "bar", baz: "bix" } & (string | (number | boolean))>,
     ({ hello: "world", foo: "bar", baz: "bix" } & string) |
     ({ hello: "world", foo: "bar", baz: "bix" } & number) |
@@ -539,55 +676,55 @@ type FlattenTable_TestF = t.Expect<
     { hello: "world", foo: "bar", baz: "bix" }
 >
 
--- TestG: Flattening an intersection of a table and an intersection of two tables.
+-- TestG: Flattening an intersection of a table and an intersection of tables.
 type FlattenTable_TestG = t.Expect<
     t.FlattenTable<{ hello: "world" } & ({ foo: "bar" } & { baz: "bix" })>,
     { hello: "world", foo: "bar", baz: "bix" }
 >
 
--- TestH: Flattening a union of two tables with no overlap.
+-- TestH: Flattening a union of tables with no overlap.
 type FlattenTable_TestH = t.Expect<
     t.FlattenTable<{ hello: "world" } | { foo: "bar" }>,
     { hello: "world" } | { foo: "bar" }
 >
 
--- TestI: Flattening a union of two tables which overlap (should be the same as if they didn't overlap).
+-- TestI: Flattening a union of tables which overlap (should be the same as if they didn't overlap).
 type FlattenTable_TestI = t.Expect<
     t.FlattenTable<{ hello: "world", foo: "bar" } | { foo: "bar" }>,
     { hello: "world", foo: "bar" } | { foo: "bar" }
 >
 
--- TestJ: Flattening a union of an intersection of two tables with one table.
+-- TestJ: Flattening a union of an intersection of tables with one table.
 type FlattenTable_TestJ = t.Expect<
     t.FlattenTable<(({ hello: "world" } & { foo: "bar" }) | { baz: "bix" })>,
     { hello: "world", foo: "bar" } | { baz: "bix" }
 >
 
--- TestK: Flattening a union of an intersection of two tables with two tables.
+-- TestK: Flattening a union of an intersection of tables with two tables.
 type FlattenTable_TestK = t.Expect<
     t.FlattenTable<(({ hello: "world" } & { foo: "bar" }) | { baz: "bix" } | { lol: "kek" })>,
     { hello: "world", foo: "bar" } | { baz: "bix" } | { lol: "kek" }
 >
 
--- TestL: Flattening a union of an intersection of two tables with nested tables.
+-- TestL: Flattening a union of an intersection of tables with nested tables.
 type FlattenTable_TestL = t.Expect<
     t.FlattenTable<(({ hello: "world" } & { foo: "bar" }) | ({ baz: "bix" } | ({ lol: "kek" } | { right: "wrong" })))>,
     (({ hello: "world", foo: "bar" }) | ({ baz: "bix" } | ({ lol: "kek" } | { right: "wrong" })))
 >
 
--- TestM: Flattening a intersection of an intersection of two tables with one table.
+-- TestM: Flattening a intersection of an intersection of tables with one table.
 type FlattenTable_TestM = t.Expect<
     t.FlattenTable<(({ hello: "world" } & { foo: "bar" }) & { baz: "bix" })>,
     { hello: "world", foo: "bar", baz: "bix" }
 >
 
--- TestN: Flattening a intersection of an intersection of two tables with two tables.
+-- TestN: Flattening a intersection of an intersection of tables with two tables.
 type FlattenTable_TestN = t.Expect<
     t.FlattenTable<(({ hello: "world" } & { foo: "bar" }) & { baz: "bix" } & { lol: "kek" })>,
     { hello: "world", foo: "bar", baz: "bix", lol: "kek" }
 >
 
--- TestO: Flattening a intersection of an union of two tables with two tables.
+-- TestO: Flattening a intersection of an union of tables with two tables.
 type FlattenTable_TestO = t.Expect<
     t.FlattenTable<(({ hello: "world" } | { foo: "bar" }) & { baz: "bix" } & { lol: "kek" })>,
     { baz: "bix", lol: "kek", hello: "world" } | { baz: "bix", lol: "kek", foo: "bar" }
@@ -605,25 +742,25 @@ type FlattenTable_TestQ = t.Expect<
     ({ hello: "world", foo: "bar" }) & string
 >
 
--- TestR: Flattening a intersection of an union of two tables with a table.
+-- TestR: Flattening a intersection of an union of tables with a table.
 type FlattenTable_TestR = t.Expect<
     t.FlattenTable<(({ hello: "world" } | { baz: "bix" }) & { foo: "bar" })>,
     { foo: "bar", hello: "world" } | { foo: "bar", baz: "bix" }
 >
 
--- TestS: Flattening a intersection of an intersection of two tables with a table.
+-- TestS: Flattening a intersection of an intersection of tables with a table.
 type FlattenTable_TestS = t.Expect<
     t.FlattenTable<(({ hello: "world" } & { baz: "bix" }) & { foo: "bar" })>,
     { hello: "world", baz: "bix", foo: "bar" }
 >
 
--- Test T: Flattening an intersection of two tables where the first one has an indexer.
+-- Test T: Flattening an intersection of tables where the first one has an indexer.
 type FlattenTable_TestT = t.Expect<
     t.FlattenTable<{ [string]: any } & { Name: string }>,
     { Name: string, [string]: any }
 >
 
--- Test U: Flattening an intersection of two tables where the second one has an indexer.
+-- Test U: Flattening an intersection of tables where the second one has an indexer.
 type FlattenTable_TestU = t.Expect<
     t.FlattenTable<{ Name: string } & { [string]: any }>,
     { Name: string, [string]: any }
@@ -697,13 +834,13 @@ type CleanTable_TestI = t.Expect<
     }
 >
 
--- Test J: Cleaning a union of two tables.
+-- Test J: Cleaning a union of tables.
 type CleanTable_TestJ = t.Expect<
     t.CleanTable<{ hello: "world" & "world" & "hey" } | { foo: "bar" & "baz" & "bar" }>,
     { hello: "world" & "hey" } | { foo: "bar" & "baz" }
 >
 
--- Test K: Cleaning an intersection of two tables.
+-- Test K: Cleaning an intersection of tables.
 type CleanTable_TestK = t.Expect<
     t.CleanTable<{ hello: "world" & "world" & "hey" } & { foo: "bar" & "baz" & "bar" }>,
     { hello: "world" & "hey" } & { foo: "bar" & "baz" }
@@ -743,13 +880,13 @@ type Partial_TestC = t.Expect<
     { [{ hello: "world" }]: { hello: "world" }? }
 >
 
--- Test D: Makes a union of two tables partial.
+-- Test D: Makes a union of tables partial.
 type Partial_TestD = t.Expect<
     t.Partial<{ hello: "world" } | { foo: "bar" }>,
     { hello: "world"? } | { foo: "bar"? }
 >
 
--- Test E: Makes an intersection of two tables partial.
+-- Test E: Makes an intersection of tables partial.
 type Partial_TestE = t.Expect<
     t.Partial<{ hello: "world" } & { foo: "bar" }>,
     { hello: "world"? } & { foo: "bar"? }
@@ -777,13 +914,13 @@ type Required_TestC = t.Expect<
     { [{ hello: "world"? }]: { hello: "world"? } }
 >
 
--- Test D: Makes a union of two tables required.
+-- Test D: Makes a union of tables required.
 type Required_TestD = t.Expect<
     t.Required<{ hello: "world"? } | { foo: "bar"? }>,
     { hello: "world" } | { foo: "bar" }
 >
 
--- Test E: Makes an intersection of two tables required.
+-- Test E: Makes an intersection of tables required.
 type Required_TestE = t.Expect<
     t.Required<{ hello: "world"? } & { foo: "bar"? }>,
     { hello: "world" } & { foo: "bar" }
@@ -812,13 +949,13 @@ type ReadOnly_TestC = t.Expect<
     { read hello: { hello: "world" } }
 >
 
--- Test D: Makes a union of two tables read only.
+-- Test D: Makes a union of tables read only.
 type ReadOnly_TestD = t.Expect<
     t.ReadOnly<{ hello: "world" } | { foo: "bar" }>,
     { read hello: "world" } | { read foo: "bar" }
 >
 
--- Test E: Makes an intersection of two tables read only.
+-- Test E: Makes an intersection of tables read only.
 type ReadOnly_TestE = t.Expect<
     t.ReadOnly<{ hello: "world" } & { foo: "bar" }>,
     { read hello: "world" } & { read foo: "bar" }
@@ -847,16 +984,154 @@ type ReadWrite_TestC = t.Expect<
     { hello: { read hello: "world" } }
 >
 
--- Test D: Makes a union of two tables readable and writable.
+-- Test D: Makes a union of tables readable and writable.
 type ReadWrite_TestD = t.Expect<
     t.ReadWrite<{ read hello: "world" } | { read foo: "bar" }>,
     { hello: "world" } | { foo: "bar" }
 >
 
--- Test E: Makes an intersection of two tables readable and writable.
+-- Test E: Makes an intersection of tables readable and writable.
 type ReadWrite_TestE = t.Expect<
     t.ReadWrite<{ read hello: "world" } & { read foo: "bar" }>,
     { hello: "world" } & { foo: "bar" }
 >
 -------------------------------------------------------
+-------------------------------------------------------------------------------------------------------
+
+--> Function ------------------------------------------------------------------------------------------
+-- FlattenFunction -------------------------------------
+-- Test A: Flattens an empty function.
+type FlattenFunction_TestA = t.Expect<
+    t.FlattenFunction<() -> ()>,
+    () -> ()
+>
+
+-- Test B: Flattens a function with only parameters.
+type FlattenFunction_TestB = t.Expect<
+    t.FlattenFunction<("hello" | ("world" | "foo"), "foo" & ("kek" & "bar"), ...("hello" | ("world" | "hey"))) -> ()>,
+    ("hello" | "world" | "foo", "foo" & "kek" & "bar", ...("hello" | "world" | "hey")) -> ()
+>
+
+-- Test C: Flattens a function with only return types.
+type FlattenFunction_TestC = t.Expect<
+    t.FlattenFunction<() -> ("hello" | ("world" | "foo"), "foo" & ("kek" & "bar"), ...("hello" | ("world" | "hey")))>,
+    () -> ("hello" | "world" | "foo", "foo" & "kek" & "bar", ...("hello" | "world" | "hey"))
+>
+
+-- Test D: Flattens a union between two functions.
+type FlattenFunction_TestD = t.Expect<
+    t.FlattenFunction<("hello" | ("world" | "hey")) -> () | () -> ("hello" | ("world" | "hey"))>,
+    ("hello" | "world" | "hey") -> () | () -> ("hello" | "world" | "hey")
+>
+
+-- Test E: Flattens an intersection between two functions.
+type FlattenFunction_TestE = t.Expect<
+    t.FlattenFunction<("hello" | ("world" | "hey")) -> () & () -> ("hello" | ("world" | "hey"))>,
+    ("hello" | "world" | "hey") -> () & () -> ("hello" | "world" | "hey")
+>
+-------------------------------------------------------
+
+-- CleanFunction --------------------------------------
+-- Test A: Cleans an empty function.
+type CleanFunction_TestA = t.Expect<
+    t.CleanFunction<() -> ()>,
+    () -> ()
+>
+
+-- Test B: Cleans a function with only parameters.
+type CleanFunction_TestB = t.Expect<
+    t.CleanFunction<("hello" | "hello" | "world", "foo" | "bar" | "foo", ...("hello" | "world" | "world")) -> ()>,
+    ("hello" | "world", "foo" | "bar", ...("hello" | "world")) -> ()
+>
+
+-- Test C: Cleans a function with only return types.
+type CleanFunction_TestC = t.Expect<
+    t.CleanFunction<() -> ("hello" | "hello" | "world", "foo" | "bar" | "foo", ...("hello" | "world" | "world"))>,
+    () -> ("hello" | "world", "foo" | "bar", ...("hello" | "world"))
+>
+
+-- Test D: Cleans a union between two functions.
+type CleanFunction_TestD = t.Expect<
+    t.CleanFunction<("hello" | "hello" | "world") -> () | () -> ("hello" | "hello" | "world")>,
+    ("hello" | "world") -> () | () -> ("hello" | "world")
+>
+
+-- Test E: Cleans an intersection between two functions.
+type CleanFunction_TestE = t.Expect<
+    t.CleanFunction<("hello" | "hello" | "world") -> () & () -> ("hello" | "hello" | "world")>,
+    ("hello" | "world") -> () & () -> ("hello" | "world")
+>
+--------------------------------------------------------
+
+-- Params ----------------------------------------------
+-- Test A: Gets parameters for an empty function.
+type Params_TestA = t.Expect<
+    t.Params<() -> ()>,
+    {}
+>
+
+-- Test B: Gets parameters for a function.
+type Params_TestB = t.Expect<
+    t.Params<("hello", "world", ...number) -> ()>,
+    {
+        ["1"]: "hello", ["2"]: "world", tail: number
+    }
+>
+
+-- Test C: Gets parameters for a union of functions.
+type Params_TestC = t.Expect<
+    t.Params<("hello", "world", ...number) -> () | ("foo", "bar", ...string) -> ()>,
+    {
+        ["1"]: "hello", ["2"]: "world", tail: number
+    } | {
+        ["1"]: "foo", ["2"]: "bar", tail: string
+    }
+>
+
+-- Test D: Gets parameters for an intersection of functions.
+type Params_TestD = t.Expect<
+    t.Params<("hello", "world", ...number) -> () & ("foo", "bar", ...string) -> ()>,
+    {
+        ["1"]: "hello", ["2"]: "world", tail: number
+    } & {
+        ["1"]: "foo", ["2"]: "bar", tail: string
+    }
+>
+--------------------------------------------------------
+
+-- Returns ---------------------------------------------
+-- Test A: Gets return types for an empty function.
+type Returns_TestA = t.Expect<
+    t.Returns<() -> ()>,
+    {}
+>
+
+-- Test B: Gets return types for a function.
+type Returns_TestB = t.Expect<
+    t.Returns<() -> ("hello", "world", ...number)>,
+    {
+        ["1"]: "hello", ["2"]: "world", tail: number
+    }
+>
+
+-- Test C: Gets return types for a union of functions.
+type Returns_TestC = t.Expect<
+    t.Returns<() -> ("hello", "world", ...number) | () -> ("foo", "bar", ...string)>,
+    {
+        ["1"]: "hello", ["2"]: "world", tail: number
+    } | {
+        ["1"]: "foo", ["2"]: "bar", tail: string
+    }
+>
+
+-- Test D: Gets return types for an intersection of functions.
+type Returns_TestD = t.Expect<
+    t.Returns<() -> ("hello", "world", ...number) & () -> ("foo", "bar", ...string)>,
+    {
+        ["1"]: "hello", ["2"]: "world", tail: number
+    } & {
+        ["1"]: "foo", ["2"]: "bar", tail: string
+    }
+>
+--------------------------------------------------------
 -------------------------------------------------------------------------------------------------------

@@ -146,6 +146,39 @@ type function sort_type(input: type)
 
         return (if input_tag == "union" then union_from_components else intersection_from_components)(components)
 
+    elseif input_tag == "function" then
+        local params = input:parameters()
+        local params_head, params_tail = params.head, params.tail
+
+        if params_head then
+            for idx, value in params_head do
+                params_head[idx] = sort_type(value)
+            end
+        end
+
+        if params_tail then
+            params_tail = sort_type(params_tail)
+        end
+
+        local returns = input:returns()
+        local returns_head, returns_tail = returns.head, returns.tail
+
+        if returns_head then
+            for idx, value in returns_head do
+                returns_head[idx] = sort_type(value)
+            end
+        end
+
+        if returns_tail then
+            returns_tail = sort_type(returns_tail)
+        end
+
+        return types.newfunction(
+            { head = params_head, tail = params_tail },
+            { head = returns_head, tail = returns_tail }
+        )
+
+
     elseif input_tag == "table" then
         for key, value in input:properties() do
             local value_read, value_write = value.read, value.write
@@ -267,33 +300,33 @@ type function stringify_components(
 end
 
 type function stringify_function(input: typeof(types.newfunction()))
-    local args = input:parameters()
-    local args_head, args_tail = args.head, args.tail
+    local params = input:parameters()
+    local params_head, params_tail = params.head, params.tail
 
-    local stringified_args: string
-    if args_head then
-        stringified_args = ""
+    local stringified_params: string
+    if params_head then
+        stringified_params = ""
 
-        local args_head_len = #args_head
-        for idx = 1, args_head_len - 1 do
-            stringified_args ..= `{Stringify(args_head[idx])}, `
+        local params_head_len = #params_head
+        for idx = 1, params_head_len - 1 do
+            stringified_params ..= `{Stringify(params_head[idx])}, `
         end
-        stringified_args ..= `{Stringify(args_head[args_head_len])}`
+        stringified_params ..= `{Stringify(params_head[params_head_len])}`
 
-        if args_tail then
-            local args_tail_tag = args_tail.tag
-            if args_tail_tag == "union" or args_tail_tag == "intersection" then
-                stringified_args ..= `, ...({Stringify(args_tail)}))`
+        if params_tail then
+            local params_tail_tag = params_tail.tag
+            if params_tail_tag == "union" or params_tail_tag == "intersection" then
+                stringified_params ..= `, ...({Stringify(params_tail)}))`
             else
-                stringified_args ..= `, ...{Stringify(args_tail)})`
+                stringified_params ..= `, ...{Stringify(params_tail)})`
             end
         end
-    elseif args_tail then
-        local args_tail_tag = args_tail.tag
-        if args_tail_tag == "union" or args_tail_tag == "intersection" then
-            stringified_args = `...({Stringify(args_tail)})`
+    elseif params_tail then
+        local params_tail_tag = params_tail.tag
+        if params_tail_tag == "union" or params_tail_tag == "intersection" then
+            stringified_params = `...({Stringify(params_tail)})`
         else
-            stringified_args = `...{Stringify(args_tail)}`
+            stringified_params = `...{Stringify(params_tail)}`
         end
     end
 
@@ -333,7 +366,7 @@ type function stringify_function(input: typeof(types.newfunction()))
         if returns_tail or (returns_head and returns_head_len >= 2) then `({stringified_returns})`
         else stringified_returns
 
-    return `({stringified_args}) -> {stringified_returns}`
+    return `({stringified_params}) -> {stringified_returns}`
 end
 
 type function stringify_main(
@@ -1137,9 +1170,13 @@ export type function Omit(input: type, to_omit: type)
             if components_find_type(input:components(), "table") then
                 OmitTableByKeys(input, to_omit)
             else
-                PickIntersection(input, to_omit)
+                OmitIntersection(input, to_omit)
 
-        else OmitUnion(input, to_omit)
+        else
+            if components_find_type(input:components(), "table") then
+                OmitTableByKeys(input, to_omit)
+            else
+                OmitUnion(input, to_omit)
 end
 
 --[=[
@@ -1161,7 +1198,11 @@ export type function Pick(input: type, to_pick: type)
             else
                 PickIntersection(input, to_pick)
 
-        else PickUnion(input, to_pick)
+        else
+            if components_find_type(input:components(), "table") then
+                PickTableByKeys(input, to_pick)
+            else
+                PickUnion(input, to_pick)
 end
 
 --[=[
@@ -1172,7 +1213,7 @@ end
 ]=]
 export type function Flatten(input: type)
     return handle_negation(input, function(input: type)
-        return FlattenTable(unions_and_intersections_flatten(input))
+        return FlattenFunction(FlattenTable(unions_and_intersections_flatten(input)))
     end)
 end
 
@@ -1183,26 +1224,29 @@ end
 ]=]
 export type function Clean(input: type)
     return handle_negation(input, function(input: type, input_tag: string)
-        return
-            if input_tag == "table" then CleanTable(input)
+        local is_union = input_tag == "union"
+        local is_not_union = not is_union
+        local is_intersection = is_not_union and input_tag == "intersection"
 
-            elseif input_tag == "union" then
+        if is_not_union and (not is_intersection) and input_tag ~= "table" and input_tag ~= "function" then
+            return input
+        end
+
+        return CleanTable(CleanFunction(
+            if is_union then
                 union_from_components(components_clean_unions_and_intersections(
                     input:components(), types.newtable(), { },
                     input_tag, "intersection", union_from_components, intersection_from_components
                 ))
 
-            elseif input_tag == "intersection" then
-                if components_find_type(input:components(), "table") then
-                    CleanTable(input)
-
-                else
-                    intersection_from_components(components_clean_unions_and_intersections(
-                        input:components(), types.newtable(), { },
-                        input_tag, "union", intersection_from_components, union_from_components
-                    ))
+            elseif is_intersection then
+                intersection_from_components(components_clean_unions_and_intersections(
+                    input:components(), types.newtable(), { },
+                    input_tag, "union", intersection_from_components, union_from_components
+                ))
 
             else input
+        ))
     end)
 end
 ----------------------------------------------------------------------------------------
@@ -1687,7 +1731,7 @@ export type function CleanTable(input: typeof(types.newtable()))
         return intersection_from_components(components_map(input:components(), CleanTable)) or types.never
     end
 
-    assert_is(input, "input", input_tag, "table")
+    if input_tag ~= "table" then return input end
 
     for key, value in input:properties() do
         local value_read, value_write = value.read, value.write
@@ -1840,7 +1884,7 @@ end
 
 --> Function Types ---------------------------------------------------------------------
 --[=[
-    Flattens unions, intersections, tables inside function arg and return types.
+    Flattens unions, intersections, tables inside function param and return types.
 
     @param input (...any) -> (...any) -- The function to flatten.
 ]=]
@@ -1853,19 +1897,19 @@ export type function FlattenFunction(input: typeof(types.newfunction()))
         return intersection_from_components(components_map(input:components(), FlattenFunction)) or types.never
     end
 
-    assert_is(input, "input", input_tag, "function")
+    if input_tag ~= "function" then return input end
 
-    local input_args = input:parameters()
-    local input_args_head, input_args_tail = input_args.head, input_args.tail
+    local input_params = input:parameters()
+    local input_params_head, input_params_tail = input_params.head, input_params.tail
 
-    if input_args_head then
-        for idx, arg in input_args_head do
-            input_args_head[idx] = Flatten(arg)
+    if input_params_head then
+        for idx, param in input_params_head do
+            input_params_head[idx] = Flatten(param)
         end
     end
 
-    if input_args_tail then
-        input_args_tail = Flatten(input_args_tail)
+    if input_params_tail then
+        input_params_tail = Flatten(input_params_tail)
     end
 
     local input_returns = input:returns()
@@ -1882,14 +1926,14 @@ export type function FlattenFunction(input: typeof(types.newfunction()))
     end
 
     return types.newfunction(
-        { head = input_args_head, tail = input_args_tail },
+        { head = input_params_head, tail = input_params_tail },
         { head = input_returns_head, tail = input_returns_tail },
         input:generics()
     )
 end
 
 --[=[
-    Removes duplicate components / properties from function arg and return types.
+    Removes duplicate components / properties from function param and return types.
 
     @param input (...any) -> (...any) -- The function to clean.
 ]=]
@@ -1902,19 +1946,19 @@ export type function CleanFunction(input: typeof(types.newfunction()))
         return intersection_from_components(components_map(input:components(), CleanFunction)) or types.never
     end
 
-    assert_is(input, "input", input_tag, "function")
+    if input_tag ~= "function" then return input end
 
-    local input_args = input:parameters()
-    local input_args_head, input_args_tail = input_args.head, input_args.tail
+    local input_params = input:parameters()
+    local input_params_head, input_params_tail = input_params.head, input_params.tail
 
-    if input_args_head then
-        for idx, arg in input_args_head do
-            input_args_head[idx] = Clean(arg)
+    if input_params_head then
+        for idx, param in input_params_head do
+            input_params_head[idx] = Clean(param)
         end
     end
 
-    if input_args_tail then
-        input_args_tail = Clean(input_args_tail)
+    if input_params_tail then
+        input_params_tail = Clean(input_params_tail)
     end
 
     local input_returns = input:returns()
@@ -1931,41 +1975,41 @@ export type function CleanFunction(input: typeof(types.newfunction()))
     end
 
     return types.newfunction(
-        { head = input_args_head, tail = input_args_tail },
+        { head = input_params_head, tail = input_params_tail },
         { head = input_returns_head, tail = input_returns_tail },
         input:generics()
     )
 end
 
 --[=[
-    Gets the arguments for a function.
+    Gets the parameters for a function.
 
-    @param input (...any) -> (...any) -- The function to get args for.
+    @param input (...any) -> (...any) -- The function to get params for.
 ]=]
-export type function Args(input: typeof(types.newfunction()))
+export type function Params(input: typeof(types.newfunction()))
     local input_tag = input.tag
     if input_tag == "union" then
-        return union_from_components(components_map(input:components(), Args)) or types.never
+        return union_from_components(components_map(input:components(), Params)) or types.never
 
     elseif input_tag == "intersection" then
-        return intersection_from_components(components_map(input:components(), Args)) or types.never
+        return intersection_from_components(components_map(input:components(), Params)) or types.never
     end
 
     assert_is(input, "input", input_tag, "function")
 
-    local input_args = input:parameters()
-    local input_args_head, input_args_tail = input_args.head, input_args.tail
+    local input_params = input:parameters()
+    local input_params_head, input_params_tail = input_params.head, input_params.tail
 
     local output = types.newtable()
 
-    if input_args_head then
-        for idx, arg in input_args_head do
-            output:setproperty(types.singleton(`{idx}`), arg)
+    if input_params_head then
+        for idx, param in input_params_head do
+            output:setproperty(types.singleton(`{idx}`), param)
         end
     end
 
-    if input_args_tail then
-        output:setproperty(types.singleton(`tail`), input_args_tail)
+    if input_params_tail then
+        output:setproperty(types.singleton("tail"), input_params_tail)
     end
 
     return output
@@ -1993,8 +2037,8 @@ export type function Returns(input: typeof(types.newfunction()))
     local output = types.newtable()
 
     if input_returns_head then
-        for idx, arg in input_returns_head do
-            output:setproperty(types.singleton(`{idx}`), arg)
+        for idx, param in input_returns_head do
+            output:setproperty(types.singleton(`{idx}`), param)
         end
     end
 
@@ -2102,7 +2146,7 @@ return nil
 
     Copyright (c) 2025 Cameron P Campbell
 
-    Permission is hereby granted, free of charge, to any person obtaining a copy
+    Permission is hereby granted, free of chparame, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
     in the Software without restriction, including without limitation the rights
     to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
