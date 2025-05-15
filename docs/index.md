@@ -3,8 +3,8 @@
 layout: home
 
 hero:
-  name: "Typeforge Docs"
-  text: "A Type Function utility library for Luau."
+  name: "Typeforge"
+  text: "Type Function Utilities"
   actions:
     - theme: brand
       text: Docs
