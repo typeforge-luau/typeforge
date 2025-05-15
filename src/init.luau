@@ -451,17 +451,26 @@ end
 
 type function components_flatten(
     input: { [number]: type },
-    as: "union" | "intersection"
+    as: "union" | "intersection",
+    as_builder: (components: { [number]: type }) -> (typeof(types.unionof()) | typeof(types.intersectionof()))
 )
     for idx = #input, 1, -1 do
         local component = input[idx]
-        if component.tag ~= as then continue end
+        local component_tag = component.tag
 
-        local component = components_flatten(component:components(), as)
+        if component_tag == "negation" then
+            component = component:inner()
+            if component.tag ~= as then continue end
 
-        input[idx] = component[1]
-        for idx = 2, #component do
-            table.insert(input, component[idx])
+            local component = types.negationof(as_builder(components_flatten(component:components(), as)))
+            input[idx] = component
+
+        elseif component_tag == as then
+            local component = components_flatten(component:components(), as)
+            input[idx] = component[1]
+            for idx = 2, #component do
+                table.insert(input, component[idx])
+            end
         end
     end
 
@@ -499,13 +508,29 @@ type function components_clean(
             else
                 input[idx] = cleaned
             end
+            
+            continue
 
-        else
-            if hashset_has_type(hashset, non_hashsettable, component, component_tag) then
-                input_len = table_value_swap_remove(input, input_len, idx)
-            else
-                hashset_insert(hashset, non_hashsettable, component, component_tag)
+        elseif component_tag == "negation" then
+            local inner = component:inner()
+
+            if inner.tag == as then
+                local cleaned = as_builder(components_clean(inner:components(), as, as_builder, hashset, non_hashsettable))
+
+                if cleaned == nil then
+                    input_len = table_value_swap_remove(input, input_len, idx)
+                else
+                    input[idx] = types.negationof(cleaned)
+                end
+                
+                continue
             end
+        end
+
+        if hashset_has_type(hashset, non_hashsettable, component, component_tag) then
+            input_len = table_value_swap_remove(input, input_len, idx)
+        else
+            hashset_insert(hashset, non_hashsettable, component, component_tag)
         end
     end
 
@@ -1193,7 +1218,7 @@ export type function FlattenUnion(input: type)
         end
     
         if input_tag == "union" then
-            return union_from_components(components_flatten(input:components(), "union")) or types.never
+            return union_from_components(components_flatten(input:components(), "union", union_from_components)) or types.never
         else
             return input
         end
@@ -1294,7 +1319,9 @@ export type function FlattenIntersection(input: type)
         assert_is(input, "input", input_tag, "intersection")
     
         if input_tag == "intersection" then
-            return intersection_from_components(components_flatten(input:components(), "intersection")) or types.never
+            return intersection_from_components(
+                components_flatten(input:components(), "intersection", intersection_from_components)
+            ) or types.never
         else
             return input
         end
@@ -1755,6 +1782,11 @@ end
 ----------------------------------------------------------------------------------------
 
 --> Function Types ---------------------------------------------------------------------
+--[=[
+    Flattens unions, intersections, tables inside function arg and return types.
+
+    @param input (...any) -> (...any) -- The function to flatten.
+]=]
 export type function FlattenFunction(input: typeof(types.newfunction()))
     local input_tag = input.tag
     if input_tag == "union" then
@@ -1799,6 +1831,11 @@ export type function FlattenFunction(input: typeof(types.newfunction()))
     )
 end
 
+--[=[
+    Removes duplicate components / properties from function arg and return types.
+
+    @param input (...any) -> (...any) -- The function to clean.
+]=]
 export type function CleanFunction(input: typeof(types.newfunction()))
     local input_tag = input.tag
     if input_tag == "union" then
@@ -1843,6 +1880,11 @@ export type function CleanFunction(input: typeof(types.newfunction()))
     )
 end
 
+--[=[
+    Gets the arguments for a function.
+
+    @param input (...any) -> (...any) -- The function to get args for.
+]=]
 export type function Args(input: typeof(types.newfunction()))
     local input_tag = input.tag
     if input_tag == "union" then
@@ -1872,6 +1914,11 @@ export type function Args(input: typeof(types.newfunction()))
     return output
 end
 
+--[=[
+    Gets the return types for a function.
+
+    @param input (...any) -> (...any) -- The function to get return types for.
+]=]
 export type function Returns(input: typeof(types.newfunction()))
     local input_tag = input.tag
     if input_tag == "union" then
@@ -1904,7 +1951,7 @@ end
 
 --> Miscellaneous Types ----------------------------------------------------------------
 --[=[
-    returns the inputted type but with unions and intersections turned into arrays so they can be inspected better.
+    returns the inputted type but with unions, intersections and negations turned into tables so they can be inspected / debugged better.
 
     @param input any -- The type to be inspected.
 ]=]
@@ -1960,14 +2007,32 @@ export type function Expect(expect: type, to_be: type)
     return expect
 end
 
+--[=[
+    Turns a type into a string representation.
+    TEMPORARY: This type function will be removed once the types get a `__tostring` metamethod (see issue `1667`).
+
+    @param input any -- The type to stringify.
+]=]
 export type function Stringify(input: type)
     return stringify_main(input, 1)
 end
 
+--[=[
+    Turns a type into a string representation and prints the result.
+    TEMPORARY: This type function will be removed once the types get a `__tostring` metamethod (see issue `1667`).
+
+    @param input any -- The type to stringify.
+]=]
 export type function StringifyPrint(input: type)
     print(Stringify(input))
 end
 
+--[=[
+    Negates a type.
+    TEMPORARY: This type function will be removed once luau gets negation syntax (see `negation-types` RFC).
+
+    @param input any -- The type to stringify.
+]=]
 export type function Negate(input: type)
     return types.negationof(input)
 end

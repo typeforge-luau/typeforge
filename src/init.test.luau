@@ -42,6 +42,12 @@ type OmitUnion_TestE = t.Expect<
     t.OmitUnion<("hello" | "world") & ("foo" | "bar"), "world">,
     "hello" & ("foo" | "bar")
 >
+
+-- Test F: Omits types from a negated union.
+type OmitUnion_TestF = t.Expect<
+    t.OmitUnion<t.Negate<string | number | "foo" | "bar">, string>,
+    t.Negate<number | "foo" | "bar">
+>
 -------------------------------------------------------
 
 -- PickUnion ------------------------------------------
@@ -74,12 +80,18 @@ type PickUnion_TestE = t.Expect<
     t.PickUnion<("hello" | "world") & ("foo" | "bar"), "world" | "bar">,
     "world" & "bar"
 >
+
+-- Test F: Picks types from a negated union.
+type PickUnion_TestF = t.Expect<
+    t.PickUnion<t.Negate<string | number | "foo" | "bar">, string | "bar">,
+    t.Negate<string | "bar">
+>
 -------------------------------------------------------
 
 -- FlattenUnion ---------------------------------------
 -- Test A: Flattens a union of two unions.
 type FlattenUnion_TestA = t.Expect<
-    t.FlattenUnion<((string | "foo") | (number | "bar"))>,
+    t.FlattenUnion<(string | "foo") | (number | "bar")>,
     string | "foo" | number | "bar"
 >
 
@@ -93,6 +105,18 @@ type FlattenUnion_TestB = t.Expect<
 type FlattenUnion_TestC = t.Expect<
     t.FlattenUnion<(string | ("foo" | "lol")) & (number | ("bar" | "world"))>,
     (string | "foo" | "lol") & (number | "bar" | "world")
+>
+
+-- Test D: Flattens a negated union.
+type FlattenUnion_TestD = t.Expect<
+    t.FlattenUnion<t.Negate<(string | "foo") | (number | "bar")>>,
+    t.Negate<string | "foo" | number | "bar">
+>
+
+-- Test E: Flattens a union between a type and a negated type.
+type FlattenUnion_TestE = t.Expect<
+    t.FlattenUnion<string | "foo" | t.Negate<number | ("bar" | "baz")>>,
+    string | "foo" | t.Negate<number | "bar" | "baz">
 >
 -------------------------------------------------------
 
@@ -113,6 +137,18 @@ type CleanUnion_TestB = t.Expect<
 type CleanUnion_TestC = t.Expect<
     t.CleanUnion<("hello" | "hello" | "lol") & ("bob" | "hai" | "hai")>,
     ("hello" | "lol") & ("bob" | "hai")
+>
+
+-- Test D: Cleans a negated union.
+type CleanUnion_TestD = t.Expect<
+    t.CleanUnion<t.Negate<(string | "foo") | (string | "bar")>>,
+    t.Negate<"foo" | (string | "bar")>
+>
+
+-- Test E: Cleans a union between a type and a negated type.
+type CleanUnion_TestE = t.Expect<
+    t.CleanUnion<string | "foo" | t.Negate<string | ("bar" | "baz")>>,
+    "foo" | t.Negate<string | ("bar" | "baz")>
 >
 -------------------------------------------------------
 -------------------------------------------------------------------------------------------------------
@@ -149,6 +185,12 @@ type OmitIntersection_TestE = t.Expect<
     t.OmitIntersection<("hello" & "world") | ("foo" & "bar"), "world">,
     "hello" | ("foo" & "bar")
 >
+
+-- Test F: Omits types from a negated intersection.
+type OmitIntersection_TestF = t.Expect<
+    t.OmitIntersection<t.Negate<string & number & "foo" & "bar">, string>,
+    t.Negate<number & "foo" & "bar">
+>
 -------------------------------------------------------
 
 -- PickIntersection -----------------------------------
@@ -181,6 +223,12 @@ type PickIntersection_TestE = t.Expect<
     t.PickIntersection<("hello" & "world") | ("foo" & "bar"), "world" | "bar">,
     "world" | "bar"
 >
+
+-- Test F: Picks types from a negated intersection.
+type PickIntersection_TestF = t.Expect<
+    t.PickIntersection<t.Negate<string & number & "foo" & "bar">, string | "bar">,
+    t.Negate<string & "bar">
+>
 -------------------------------------------------------
 
 -- FlattenIntersection --------------------------------
@@ -201,6 +249,18 @@ type FlattenIntersection_TestC = t.Expect<
     t.FlattenIntersection<(string & ("foo" & "lol")) | (number & ("bar" & "world"))>,
     (string & "foo" & "lol") | (number & "bar" & "world")
 >
+
+-- Test D: Flattens a negated intersection.
+type FlattenIntersection_TestD = t.Expect<
+    t.FlattenIntersection<t.Negate<(string & "foo") & (number & "bar")>>,
+    t.Negate<string & "foo" & number & "bar">
+>
+
+-- Test E: Flattens an intersection between a type and a negated type.
+type FlattenIntersection_TestE = t.Expect<
+    t.FlattenIntersection<string & "foo" & t.Negate<number & ("bar" & "baz")>>,
+    string & "foo" & t.Negate<number & "bar" & "baz">
+>
 -------------------------------------------------------
 
 -- CleanIntersection ----------------------------------
@@ -216,10 +276,22 @@ type CleanIntersection_TestB = t.Expect<
     "hello" & ("lol" & ("kek" & "food"))
 >
 
--- Test  C: Cleans a union of intersections.
-type CleanCleanIntersection_TestC = t.Expect<
+-- Test C: Cleans a union of intersections.
+type CleanIntersection_TestC = t.Expect<
     t.CleanIntersection<("hello" & "hello" & "lol") | ("bob" & "hai" & "hai")>,
     ("hello" & "lol") | ("bob" & "hai")
+>
+
+-- Test D: Cleans a negated intersection.
+type CleanIntersection_TestD = t.Expect<
+    t.CleanIntersection<t.Negate<(string & "foo") & (string & "bar")>>,
+    t.Negate<"foo" & (string & "bar")>
+>
+
+-- Test E: Cleans an intersection between a type and a negated type.
+type CleanIntersection_TestE = t.Expect<
+    t.CleanIntersection<string & "foo" & t.Negate<string & ("bar" & "baz")>>,
+    "foo" & t.Negate<string & ("bar" & "baz")>
 >
 -------------------------------------------------------
 -------------------------------------------------------------------------------------------------------
