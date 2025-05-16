@@ -34,7 +34,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Rust
-        run: rustup override set 1.28.1
+        run: rustup override set 1.85.0
       - name: Output rust version for educational purposes
         run: rustup --version
 
