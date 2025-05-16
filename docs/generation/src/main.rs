@@ -77,7 +77,7 @@ fn main() {
 
         <script setup>
         if (typeof window !== 'undefined') {
-            window.location.replace('/docs/core/')
+            window.location.replace('/docs/core')
         }
         </script>
 
