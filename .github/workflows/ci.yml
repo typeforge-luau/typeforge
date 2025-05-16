@@ -46,7 +46,7 @@ jobs:
         run: |
           echo "Downloading Luau version ${{ env.LATEST_TAG }}"
           mkdir -p luau-binaries
-          url -L -o luau-binaries/luau-ubuntu.zip https://github.com/luau-lang/luau/releases/download/${{ env.LATEST_TAG }}/luau-ubuntu.zip
+          curl -L -o luau-binaries/luau-ubuntu.zip https://github.com/luau-lang/luau/releases/download/${{ env.LATEST_TAG }}/luau-ubuntu.zip
           unzip luau-binaries/luau-ubuntu.zip -d luau-binaries/
           chmod +x luau-binaries/luau luau-binaries/luau-analyze luau-binaries/luau-ast luau-binaries/luau-compile
           sudo mv luau-binaries/luau /usr/local/bin/luau
