@@ -49,10 +49,10 @@ jobs:
           curl -L -o luau-binaries/luau-ubuntu.zip https://github.com/luau-lang/luau/releases/download/${{ env.LATEST_TAG }}/luau-ubuntu.zip
           unzip luau-binaries/luau-ubuntu.zip -d luau-binaries/
           chmod +x luau-binaries/luau luau-binaries/luau-analyze luau-binaries/luau-ast luau-binaries/luau-compile
-          sudo mv luau-binaries/luau /usr/local/bin/luau
-          sudo mv luau-binaries/luau-analyze /usr/local/bin/luau-analyze
-          sudo mv luau-binaries/luau-ast /usr/local/bin/luau-ast
-          sudo mv luau-binaries/luau-compile /usr/local/bin/luau-compile
+          sudo cp luau-binaries/luau /usr/local/bin/luau
+          sudo cp luau-binaries/luau-analyze /usr/local/bin/luau-analyze
+          sudo cp luau-binaries/luau-ast /usr/local/bin/luau-ast
+          sudo cp luau-binaries/luau-compile /usr/local/bin/luau-compile
 
       - name: Run Tests
         run: |
