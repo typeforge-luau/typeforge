@@ -27,7 +27,10 @@ jobs:
           echo "Downloading Luau version ${{ env.LATEST_TAG }}"
           curl -LO https://github.com/luau-lang/luau/releases/download/${{ env.LATEST_TAG }}/luau-ubuntu.zip
           unzip luau-ubuntu.zip
-          chmod +x luau-ubuntu
+          chmod +x luau-ubuntu/luau
+          chmod +x luau-ubuntu/luau-analyze
+          chmod +x luau-ubuntu/luau-ast
+          chmod +x luau-ubuntu/luau-compile
           sudo mv luau-ubuntu /usr/local/bin/luau
 
       - name: Verify Luau installation
