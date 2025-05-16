@@ -1393,17 +1393,7 @@ end
     -- type Result = "foo" | "hello" | "lol" | "world"
 ]=]
 export type function FlattenUnion(input: type)
-    return handle_negation(input, function(input: type, input_tag: string)
-        if input_tag == "intersection" then
-            return intersection_from_components(components_map(input:components(), FlattenUnion))
-        end
     
-        if input_tag == "union" then
-            return union_from_components(components_flatten(input:components(), "union", union_from_components)) or types.never
-        else
-            return input
-        end
-    end)
 end
 
 --[=[
