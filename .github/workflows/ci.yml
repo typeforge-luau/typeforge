@@ -11,6 +11,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
       - name: Get latest Luau version
         id: get_latest
         run: |
@@ -20,7 +25,7 @@ jobs:
       - name: Download Luau binary
         run: |
           echo "Downloading Luau version $LATEST_TAG"
-          curl -LO https://github.com/Roblox/luau/releases/download/${LATEST_TAG}/luau-linux
+          curl -LO https://github.com/luau-lang/luau/releases/download/${LATEST_TAG}/luau-ubuntu.zip
           file luau-linux
           chmod +x luau-linux
           sudo mv luau-linux /usr/local/bin/luau
