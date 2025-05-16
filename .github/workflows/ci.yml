@@ -24,8 +24,8 @@ jobs:
 
       - name: Download Luau binary
         run: |
-          echo "Downloading Luau version $LATEST_TAG"
-          curl -LO https://github.com/luau-lang/luau/releases/download/${LATEST_TAG}/luau-ubuntu.zip
+          echo "Downloading Luau version ${{ env.LATEST_TAG }}"
+          curl -LO https://github.com/luau-lang/luau/releases/download/${{ env.LATEST_TAG }}/luau-ubuntu.zip
           file luau-ubuntu
           chmod +x luau-ubuntu
           sudo mv luau-ubuntu /usr/local/bin/luau
