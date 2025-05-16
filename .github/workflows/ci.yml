@@ -22,29 +22,11 @@ jobs:
           LATEST_TAG=$(curl -s https://api.github.com/repositories/148821256/releases/latest | jq -r '.tag_name')
           echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
 
-      - name: Luau Cache
-        id: cache-luau
-        uses: actions/cache@v4
-        with:
-          path: luau-binaries
-          key: luau-${{ env.LATEST_TAG }}
-          restore-keys: luau-
 
       - name: Debug cache hit
         run: echo "Cache hit? ${{ steps.cache-luau.outputs.cache-hit }}"
 
-      - name: Setup Luau (If Cached)
-        if: steps.cache-luau.outputs.cache-hit == 'true'
-        run: |
-          echo "Luau cache hit, copying binaries"
-          ls luau-binaries
-          sudo cp luau-binaries/luau /usr/local/bin/luau
-          sudo cp luau-binaries/luau-analyze /usr/local/bin/luau-analyze
-          sudo cp luau-binaries/luau-ast /usr/local/bin/luau-ast
-          sudo cp luau-binaries/luau-compile /usr/local/bin/luau-compile
-
       - name: Setup Luau (If Not Cached)
-        if: steps.cache-luau.outputs.cache-hit != 'true'
         run: |
           echo "Downloading Luau version ${{ env.LATEST_TAG }}"
           mkdir -p luau-binaries
