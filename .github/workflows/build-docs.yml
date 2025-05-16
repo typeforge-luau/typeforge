@@ -38,10 +38,28 @@ jobs:
       - name: Output rust version for educational purposes
         run: rustup --version
 
+      - name: Cache Rust
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: 1.1.21
+
+      - name: Cache Bun
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun
+            ~/bun.lockb
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lockb') }}
+          restore-keys: ${{ runner.os }}-bun-
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
