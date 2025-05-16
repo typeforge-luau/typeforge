@@ -29,6 +29,7 @@ jobs:
           path: luau-binaries
           key: luau-${{ env.LATEST_TAG }}
           restore-keys: luau-
+          save-always: true
 
       - name: Debug cache hit
         run: echo "Cache hit? ${{ steps.cache-luau.outputs.cache-hit }}"
