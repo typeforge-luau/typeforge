@@ -47,6 +47,9 @@ jobs:
       - name: Output rust version for educational purposes
         run: rustup --version
 
+      - name: Generate Docs
+        run: cd docs/generation && cargo run src/main
+
       - name: Cache Bun
         uses: actions/cache@v4
         with:
