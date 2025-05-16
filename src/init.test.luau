@@ -1136,4 +1136,4 @@ type Returns_TestD = t.Expect<
 --------------------------------------------------------
 -------------------------------------------------------------------------------------------------------
 
-type ThisTestWillFail = Expect<true, false>
+type ThisTestWillFail = t.Expect<true, false>
