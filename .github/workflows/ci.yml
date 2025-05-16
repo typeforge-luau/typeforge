@@ -37,7 +37,7 @@ jobs:
         if: steps.cache-luau.outputs.cache-hit == 'true'
         run: |
           echo "Luau cache hit, copying binaries"
-          ls -la luau-binaries
+          ls luau-binaries
           sudo cp luau-binaries/luau /usr/local/bin/luau
           sudo cp luau-binaries/luau-analyze /usr/local/bin/luau-analyze
           sudo cp luau-binaries/luau-ast /usr/local/bin/luau-ast
