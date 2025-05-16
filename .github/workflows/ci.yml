@@ -16,13 +16,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get latest Luau version
+      - name: Get Latest Luau Version
         id: get_latest
         run: |
           LATEST_TAG=$(curl -s https://api.github.com/repositories/148821256/releases/latest | jq -r '.tag_name')
           echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
 
-      - name: Download Luau binary
+      - name: Setup Luau
         run: |
           echo "Downloading Luau version ${{ env.LATEST_TAG }}"
           curl -LO https://github.com/luau-lang/luau/releases/download/${{ env.LATEST_TAG }}/luau-ubuntu.zip
@@ -36,6 +36,13 @@ jobs:
           sudo mv luau-ast /usr/local/bin/luau-ast
           sudo mv luau-compile /usr/local/bin/luau-compile
 
-      - name: Verify Luau installation
-        run: luau-analyze --version
+      - name: Run Tests
+        run: |
+          perl -pi -e 's/require\("\@self"\)/require\("\.\/"\)/g' init.test.luau
+          output=$(luau-analyze src/init.test.luau --fflags=LuauSolverV2,true)
+          if [ -n "$output" ]; then
+            echo "$output"
+            echo "luau-analyze found issues!"
+            exit 1
+          fi
         

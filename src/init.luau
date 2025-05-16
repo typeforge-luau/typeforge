@@ -1764,8 +1764,8 @@ export type function FlattenTable(input: type)
     local output: typeof(types.newtable()), output_idx: number
     local can_add_read_indexer, can_add_write_indexer
 
-    local output_union_components = {}
-    local output_non_table_intersection_components = {}
+    local output_union_components: { [number]: type } = {}
+    local output_non_table_intersection_components: { [number]: type } = {}
    
     for idx, component in components do
         local component_tag = component.tag
