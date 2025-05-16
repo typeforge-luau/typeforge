@@ -31,5 +31,5 @@ jobs:
           sudo mv luau /usr/local/bin/luau
 
       - name: Verify Luau installation
-        run: luau --version
+        run: luau-analyze --version
         
