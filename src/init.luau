@@ -1454,24 +1454,7 @@ end
     -- type Result = "hello" & string
 ]=]
 export type function OmitIntersection(input: type, to_omit: type)
-    return handle_negation(input, function(input: type, input_tag: string)
-        if input_tag == "union" then
-            return union_from_components(components_map(input:components(), OmitIntersection, to_omit))
-        end
-    
-        if to_omit.tag == "union" then
-            local hashset, non_hashsettable = hashset_from_components(FlattenUnion(to_omit):components())
-    
-            return intersection_filter(input, input_tag, function(component): boolean
-                return hashset_has_type(hashset, non_hashsettable, component, component.tag)
-            end) or types.never
-    
-        else
-            return intersection_filter(input, input_tag, function(component)
-                return component == to_omit
-            end) or types.never
-        end
-    end)
+    -- i broke this teehee >:)
 end
 
 --[=[
