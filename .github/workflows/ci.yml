@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: main
+
+  pull_request:
+    branches: main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download latest Luau binary
+        id: download_luau
+        run: |
+          # Get latest release tag
+          LATEST_TAG=$(curl -s https://api.github.com/repos/Roblox/luau/releases/latest | jq -r '.tag_name')
+          echo "Latest Luau version: $LATEST_TAG"
+
+          # Download Linux binary
+          curl -LO https://github.com/Roblox/luau/releases/download/${LATEST_TAG}/luau-linux
+
+          # Make executable
+          chmod +x luau-linux
+
+          # Move to a known location
+          sudo mv luau-linux /usr/local/bin/luau
+
+      - name: Verify Luau installed
+        run: luau --version
+        
