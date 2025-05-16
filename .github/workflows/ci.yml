@@ -22,12 +22,15 @@ jobs:
           LATEST_TAG=$(curl -s https://api.github.com/repositories/148821256/releases/latest | jq -r '.tag_name')
           echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
 
-      - name: Restore Luau cache
+      - name: Luau Cache
         id: cache-luau
         uses: actions/cache@v3
         with:
           path: luau-binaries
           key: luau-${{ env.LATEST_TAG }}
+
+      - name: Debug cache hit
+        run: echo "Cache hit? ${{ steps.cache-luau.outputs.cache-hit }}"
 
       - name: Setup Luau (If Cached)
         if: steps.cache-luau.outputs.cache-hit == 'true'
