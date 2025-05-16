@@ -47,10 +47,10 @@ jobs:
         uses: actions/configure-pages@v4
 
       - name: Install dependencies
-        run: cd docs && bun install
+        run: cd docs/site && bun install
 
       - name: Build with VitePress
-        run: cd docs && bun run docs:build
+        run: cd docs/site && bun run docs:build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
