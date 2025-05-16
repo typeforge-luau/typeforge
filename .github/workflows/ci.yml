@@ -11,13 +11,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y curl jq
-
       - name: Get latest Luau version
         id: get_latest
         run: |
-          LATEST_TAG=$(curl -s https://api.github.com/repositories/148821256/releases/latest | jq -r 'tag_name')
+          LATEST_TAG=$(curl -s https://api.github.com/repositories/148821256/releases/latest | jq -r '.tag_name')
           echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
 
       - name: Download Luau binary
