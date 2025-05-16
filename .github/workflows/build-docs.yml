@@ -44,8 +44,6 @@ jobs:
 
       - name: Setup Rust
         run: rustup override set 1.85.0
-      - name: Output rust version for educational purposes
-        run: rustup --version
 
       - name: Generate Docs
         run: cd docs/generation && cargo run src/main
