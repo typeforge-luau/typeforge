@@ -16,25 +16,40 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get Latest Luau Version
+      - name: Get Luau Version
         id: get_latest
         run: |
           LATEST_TAG=$(curl -s https://api.github.com/repositories/148821256/releases/latest | jq -r '.tag_name')
           echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
 
-      - name: Setup Luau
+      - name: Restore Luau cache
+        id: cache-luau
+        uses: actions/cache@v3
+        with:
+          path: luau-binaries
+          key: luau-${{ env.LATEST_TAG }}
+
+      - name: Setup Luau (If Cached)
+        if: steps.cache-luau.outputs.cache-hit == 'true'
+        run: |
+          echo "Luau cache hit, copying binaries"
+          sudo cp luau-binaries/luau /usr/local/bin/luau
+          sudo cp luau-binaries/luau-analyze /usr/local/bin/luau-analyze
+          sudo cp luau-binaries/luau-ast /usr/local/bin/luau-ast
+          sudo cp luau-binaries/luau-compile /usr/local/bin/luau-compile
+
+      - name: Setup Luau (If Not Cached)
+        if: steps.cache-luau.outputs.cache-hit == 'false'
         run: |
           echo "Downloading Luau version ${{ env.LATEST_TAG }}"
-          curl -LO https://github.com/luau-lang/luau/releases/download/${{ env.LATEST_TAG }}/luau-ubuntu.zip
-          unzip luau-ubuntu.zip
-          chmod +x luau
-          chmod +x luau-analyze
-          chmod +x luau-ast
-          chmod +x luau-compile
-          sudo mv luau /usr/local/bin/luau
-          sudo mv luau-analyze /usr/local/bin/luau-analyze
-          sudo mv luau-ast /usr/local/bin/luau-ast
-          sudo mv luau-compile /usr/local/bin/luau-compile
+          mkdir -p luau-binaries
+          url -L -o luau-binaries/luau-ubuntu.zip https://github.com/luau-lang/luau/releases/download/${{ env.LATEST_TAG }}/luau-ubuntu.zip
+          unzip luau-binaries/luau-ubuntu.zip -d luau-binaries/
+          chmod +x luau-binaries/luau luau-binaries/luau-analyze luau-binaries/luau-ast luau-binaries/luau-compile
+          sudo mv luau-binaries/luau /usr/local/bin/luau
+          sudo mv luau-binaries/luau-analyze /usr/local/bin/luau-analyze
+          sudo mv luau-binaries/luau-ast /usr/local/bin/luau-ast
+          sudo mv luau-binaries/luau-compile /usr/local/bin/luau-compile
 
       - name: Run Tests
         run: |
