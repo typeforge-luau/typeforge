@@ -15,7 +15,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          
+
       - name: Get latest Luau version
         id: get_latest
         run: |
@@ -26,9 +26,9 @@ jobs:
         run: |
           echo "Downloading Luau version $LATEST_TAG"
           curl -LO https://github.com/luau-lang/luau/releases/download/${LATEST_TAG}/luau-ubuntu.zip
-          file luau-linux
-          chmod +x luau-linux
-          sudo mv luau-linux /usr/local/bin/luau
+          file luau-ubuntu
+          chmod +x luau-ubuntu
+          sudo mv luau-ubuntu /usr/local/bin/luau
 
       - name: Verify Luau installation
         run: luau --version
