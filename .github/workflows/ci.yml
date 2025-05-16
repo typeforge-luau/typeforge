@@ -42,7 +42,7 @@ jobs:
           sudo cp luau-binaries/luau-compile /usr/local/bin/luau-compile
 
       - name: Setup Luau (If Not Cached)
-        if: steps.cache-luau.outputs.cache-hit == 'false'
+        if: steps.cache-luau.outputs.cache-hit != 'true'
         run: |
           echo "Downloading Luau version ${{ env.LATEST_TAG }}"
           mkdir -p luau-binaries
