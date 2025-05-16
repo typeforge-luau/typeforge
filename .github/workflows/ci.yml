@@ -38,7 +38,7 @@ jobs:
 
       - name: Run Tests
         run: |
-          perl -pi -e 's/require\("\@self"\)/require\("\.\/"\)/g' init.test.luau
+          perl -pi -e 's/require\("\@self"\)/require\("\.\/"\)/g' src/init.test.luau
           output=$(luau-analyze src/init.test.luau --fflags=LuauSolverV2,true)
           if [ -n "$output" ]; then
             echo "$output"
