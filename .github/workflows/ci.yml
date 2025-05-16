@@ -24,7 +24,7 @@ jobs:
 
       - name: Luau Cache
         id: cache-luau
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: luau-binaries
           key: luau-${{ env.LATEST_TAG }}
