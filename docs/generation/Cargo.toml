@@ -1,0 +1,13 @@
+[package]
+name = "generation"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+full_moon = { version = "2.0.0", features = [ "luau" ] }
+logos = "0.15.0"
+guarded = "0.0.2"
+unindent = "0.2.4"
+convert_case = "0.8.0"
+phf = "0.11.3"
+phf_macros = "0.11.3"

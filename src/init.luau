@@ -1160,6 +1160,8 @@ end
 --[=[
     Returns a subset of a type without specified components / properties.
 
+    @category Core
+
     @param input any -- The type to omit from.
     @param to_omit any -- The components / properties to omit.
 
@@ -1193,6 +1195,8 @@ end
 
 --[=[
     Returns a subset of a type with only specified components / properties.
+
+    @category Core
 
     @param input any -- The type to pick from.
     @param to_pick any -- The components / properties to pick.
@@ -1229,6 +1233,8 @@ end
     Combines a nested union or intersection into one union / intersection.
     Combines an intersection of tables into one consolidated table whilst preserving semantics.
 
+    @category Core
+
     @param input any -- The type to flatten.
 
     @example
@@ -1252,6 +1258,8 @@ end
 
 --[=[
     Removes duplicate components / properties from a type.
+
+    @category Core
 
     @param input any -- The type to clean.
 
@@ -1301,6 +1309,8 @@ end
 --[=[
     Returns a subset of a union without specified components.
 
+    @category Union
+
     @param input any -- The union to omit from.
     @param to_omit any -- The components to omit.
 
@@ -1335,6 +1345,8 @@ end
 
 --[=[
     Returns a subset of a union with only specified components.
+
+    @category Union
 
     @param input any -- The union to pick from.
     @param to_pick any -- The components to pick.
@@ -1371,6 +1383,8 @@ end
 --[=[
     Recursively combines nested unions into one union.
 
+    @category Union
+
     @param input any -- The union to flatten.
 
     @example
@@ -1394,6 +1408,8 @@ end
 
 --[=[
     Removes duplicate types from a union.
+
+    @category Union
 
     @param input any -- The union to clean.
 
@@ -1423,6 +1439,8 @@ end
 --> Intersection Types -----------------------------------------------------------------
 --[=[
     Returns a subset of an intersection without specified components.
+
+    @category Intersection
 
     @param input any -- The intersection to omit from.
     @param to_omit any -- The components to omit.
@@ -1458,6 +1476,8 @@ end
 
 --[=[
     Returns a subset of an intersection with only specified components.
+
+    @category Intersection
 
     @param input any -- The intersection to pick from.
     @param to_pick any -- The components to pick.
@@ -1496,6 +1516,8 @@ end
 --[=[
     Combines nested intersections into one intersection.
 
+    @category Intersection
+
     @param input any -- The intersection to flatten.
 
     @example
@@ -1523,6 +1545,8 @@ end
 
 --[=[
     Removes duplicate types from an intersection.
+
+    @category Intersection
 
     @param input any -- The intersection to clean.
 
@@ -1554,6 +1578,8 @@ end
 --> Table Types ------------------------------------------------------------------------
 --[=[
     Returns a subset of a table without properties whose keys contain the specified components.
+
+    @category Table
 
     @param input { [any]: type } -- The table to omit from.
     @param to_omit any -- The values of the properties to omit.
@@ -1592,6 +1618,8 @@ end
 --[=[
     Returns a subset of a table without properties whose values contain the specified components.
 
+    @category Table
+
     @param input { [any]: type } -- The table to omit from.
     @param to_omit any -- The values of the properties to omit.
 
@@ -1628,6 +1656,8 @@ end
 
 --[=[
     Returns a subset of a table with only properties whose keys contain the specified components.
+
+    @category Table
 
     @param input { [any]: type } -- The table to pick from.
     @param to_pick any -- The keys of the properties to pick.
@@ -1666,6 +1696,8 @@ end
 --[=[
     Returns a subset of a table with only properties whose values contain the specified components.
 
+    @category Table
+
     @param input { [any]: type } -- The table to pick from.
     @param to_pick any -- The values of the properties to pick.
 
@@ -1702,6 +1734,8 @@ end
 
 --[=[
     Combines an intersection of tables into one consolidated table whilst preserving semantics.
+
+    @category Table
 
     @param input { [any]: type } -- The table to flatten.
 
@@ -1850,6 +1884,8 @@ end
 --[=[
     Removes duplicate types from union and intersection keys and values in the specified table.
 
+    @category Table
+
     @param input { [any]: type } -- The table to clean.
 
     @example
@@ -1916,6 +1952,8 @@ end
 --[=[
     Makes every property in a table optional.
 
+    @category Table
+
     @param input { [any]: type } -- The table to make partial.
 
     @example
@@ -1941,6 +1979,8 @@ end
 
 --[=[
     Makes every property in a table required.
+
+    @category Table
 
     @param input { [any]: type } -- The table to make required.
 
@@ -1969,6 +2009,8 @@ end
 
 --[=[
     Makes every property in a table read only.
+
+    @category Table
 
     @param input { [any]: type } -- The table to make read only.
 
@@ -2001,6 +2043,8 @@ end
 
 --[=[
     Makes every property in a table read / write.
+
+    @category Table
 
     @param input { [any]: type } -- The table to make read / write.
 
@@ -2040,6 +2084,8 @@ end
 --> Function Types ---------------------------------------------------------------------
 --[=[
     Flattens unions, intersections and tables inside function parameter and return types.
+
+    @category Function
 
     @param input (...any) -> (...any) -- The function to flatten.
 
@@ -2095,6 +2141,8 @@ end
 --[=[
     Removes duplicate components / properties from function param and return types.
 
+    @category Function
+
     @param input (...any) -> (...any) -- The function to clean.
 
     @example
@@ -2149,6 +2197,8 @@ end
 --[=[
     Gets the parameters for a function.
 
+    @category Function
+
     @param input (...any) -> (...any) -- The function to get params for.
 
     @example
@@ -2195,6 +2245,8 @@ end
 --[=[
     Gets the return types for a function.
 
+    @category Function
+
     @param input (...any) -> (...any) -- The function to get return types for.
 
     @example
@@ -2235,6 +2287,8 @@ end
 --> Miscellaneous Types ----------------------------------------------------------------
 --[=[
     returns the inputted type but with unions, intersections and negations turned into tables so they can be inspected / debugged better.
+
+    @category Miscellaneous
 
     @param input any -- The type to be inspected.
 
@@ -2286,6 +2340,8 @@ end
 --[=[
     Throws a type error if the first type does not equal the second.
 
+    @category Miscellaneous
+
     @param expect any -- The type to be compared.
     @param toBe any -- The type you want to compare `expect` to.
 
@@ -2328,7 +2384,14 @@ end
     Negates a type.
     TEMPORARY: This type function will be removed once luau gets negation syntax (see `negation-types` RFC).
 
+    @category Miscellaneous
+
     @param input any -- The type to stringify.
+
+    @example
+    type Result = Negate<string>
+
+    -- type Result = ~string
 
     @example
     type Result = Negate<string>

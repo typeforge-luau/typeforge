@@ -21,4 +21,7 @@
 
 docs/.vitepress/dist
 docs/.vitepress/cache
-docs/node_modules
+docs/site/node_modules
+docs/generation/target
+docs/site/.vitepress/cache
+docs/site/docs
