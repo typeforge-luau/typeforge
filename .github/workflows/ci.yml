@@ -11,22 +11,23 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Download latest Luau binary
-        id: download_luau
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y curl jq
+
+      - name: Get latest Luau version
+        id: get_latest
         run: |
-          # Get latest release tag
           LATEST_TAG=$(curl -s https://api.github.com/repos/Roblox/luau/releases/latest | jq -r '.tag_name')
-          echo "Latest Luau version: $LATEST_TAG"
+          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
 
-          # Download Linux binary
+      - name: Download Luau binary
+        run: |
+          echo "Downloading Luau version $LATEST_TAG"
           curl -LO https://github.com/Roblox/luau/releases/download/${LATEST_TAG}/luau-linux
-
-          # Make executable
+          file luau-linux
           chmod +x luau-linux
-
-          # Move to a known location
           sudo mv luau-linux /usr/local/bin/luau
 
-      - name: Verify Luau installed
+      - name: Verify Luau installation
         run: luau --version
         
