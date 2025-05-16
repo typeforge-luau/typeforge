@@ -1,0 +1,62 @@
+.vp-doc span.inline-code-highlight > code {
+    border: 1px solid var(--vp-c-divider);
+}
+
+h1 {
+    padding-bottom: 0px;
+}
+
+.vp-doc h2, .vp-doc h3, .vp-doc h4, .vp-doc h5, .vp-doc h6 {
+    border-top: none !important;
+    margin-top: 0px !important;
+}
+
+.vp-doc hr {
+    margin: 50px 0px !important;
+}
+
+.vp-doc h1, .vp-doc h2, .vp-doc h3, .vp-doc h4, .vp-doc h5, .vp-doc h6, .vp-doc p, .vp-doc table {
+    margin-bottom: 0px !important;
+}
+
+h1:has(.VPBadge) {
+    display: flex;
+    align-items: center;
+}
+
+h1:has(.VPBadge) .VPBadge {
+    margin-top: 6px !important;
+    margin-left: 13px;
+}
+
+a:has(.VPBadge) {
+    width: fit-content !important;
+    height: fit-content !important;
+    display: flex;
+}
+
+.VPBadge svg {
+    width: 25px !important;
+    height: auto !important;
+}
+
+.VPBadge.info svg {
+    fill: var(--vp-badge-info-text);
+}
+
+.VPBadge.tip svg {
+    fill: var(--vp-badge-tip-text);
+}
+
+.VPBadge.warning svg {
+    fill: var(--vp-badge-warning-text);
+}
+
+.VPBadge.danger svg {
+    fill: var(--vp-badge-danger-text);
+}
+
+.VPBadge:has(svg) {
+    padding: 0px !important;
+    background-color: none !important;
+}

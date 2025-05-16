@@ -4,7 +4,7 @@ layout: home
 
 hero:
   name: "Typeforge"
-  text: "Type Function Utilities"
+  tagline: "Type Function Utilities For Luau"
   actions:
     - theme: brand
       text: Docs
