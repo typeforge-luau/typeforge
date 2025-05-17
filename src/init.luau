@@ -2392,16 +2392,12 @@ end
     type Result = Negate<string>
 
     -- type Result = ~string
-
-    @example
-    type Result = Negate<string>
-
-    -- type Result = ~string
 ]=]
 export type function Negate(input: type)
     return types.negationof(input)
 end
 ----------------------------------------------------------------------------------------
+
 
 return nil
 
