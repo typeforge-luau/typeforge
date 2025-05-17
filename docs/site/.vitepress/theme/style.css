@@ -58,5 +58,5 @@ a:has(.VPBadge) {
 
 .VPBadge:has(svg) {
     padding: 0px !important;
-    background-color: none !important;
+    background: none !important;
 }
