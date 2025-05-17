@@ -36,6 +36,7 @@ export default defineConfig({
                     { text: "Intersection", link: "docs/intersection" },
                     { text: "Table", link: "docs/table" },
                     { text: "Function", link: "docs/function" },
+                    { text: "Miscellaneous", link: "docs/miscellaneous" },
                 ]
             }
         ]
