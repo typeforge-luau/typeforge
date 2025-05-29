@@ -893,6 +893,39 @@ type Partial_TestE = t.Expect<
 >
 -------------------------------------------------------
 
+-- DeepPartial --------------------------------------------
+-- Test A: Makes a table deeply partial.
+type DeepPartial_TestA = t.Expect<
+    t.DeepPartial<{ hello: "world", foo: "bar" }>,
+    { hello: "world"?, foo: "bar"? }
+>
+
+-- Test B: Makes a table (whose indexer is a table) deeply partial.
+-- (index should not be affected by Partial).
+type DeepPartial_TestB = t.Expect<
+    t.DeepPartial<{ [{ hello: "world" }]: "foo" }>,
+    { [{ hello: "world" }]: "foo"? }
+>
+
+-- Test C: Makes a nested table deeply partial.
+type DeepPartial_TestC = t.Expect<
+    t.DeepPartial<{ [{ hello: "world" }]: { hello: "world" } }>,
+    { [{ hello: "world" }]: { hello: "world"? }? }
+>
+
+-- Test D: Makes a union of nested tables deeply partial.
+type DeepPartial_TestD = t.Expect<
+    t.DeepPartial<{ hello: "world" | { bar: "baz" } } | { foo: "bar" }>,
+    { hello: "world"? | { bar: "baz"? } } | { foo: "bar"? }
+>
+
+-- Test E: Makes an intersection of tables deeply partial.
+type DeepPartial_TestE = t.Expect<
+    t.DeepPartial<{ hello: "world" | { bar: "baz" } } & { foo: "bar" }>,
+    { hello: "world"? | { bar: "baz"? } } & { foo: "bar"? }
+>
+-------------------------------------------------------
+
 -- Required -------------------------------------------
 -- Test A: Makes a table required.
 type Required_TestA = t.Expect<
@@ -924,6 +957,39 @@ type Required_TestD = t.Expect<
 type Required_TestE = t.Expect<
     t.Required<{ hello: "world"? } & { foo: "bar"? }>,
     { hello: "world" } & { foo: "bar" }
+>
+-------------------------------------------------------
+
+-- DeepRequired -------------------------------------------
+-- Test A: Makes a table deeply required.
+type DeepRequired_TestA = t.Expect<
+    t.DeepRequired<{ hello: "world"?, foo: "bar"? }>,
+    { hello: "world", foo: "bar" }
+>
+
+-- Test B: Makes a table (whose indexer is a table) deeply required.
+-- (index should not be affected by Required).
+type DeepRequired_TestB = t.Expect<
+    t.DeepRequired<{ [{ hello: "world"? }]: "foo"? }>,
+    { [{ hello: "world"? }]: "foo" }
+>
+
+-- Test C: Makes a nested table deeply required.
+type DeepRequired_TestC = t.Expect<
+    t.DeepRequired<{ [{ hello: "world"? }]: { hello: "world"? }? }>,
+    { [{ hello: "world"? }]: { hello: "world" } }
+>
+
+-- Test D: Makes a union of nested tables deeply required.
+type DeepRequired_TestD = t.Expect<
+    t.DeepRequired<{ hello: "world"? | { hello: "world" }? } | { foo: "bar"? }>,
+    { hello: "world" | { hello: "world" } } | { foo: "bar" }
+>
+
+-- Test E: Makes an intersection of nested tables deeply required.
+type DeepRequired_TestE = t.Expect<
+    t.DeepRequired<{ hello: "world"? | { hello: "world" }? } & { foo: "bar"? }>,
+    { hello: "world" | { hello: "world" } } & { foo: "bar" }
 >
 -------------------------------------------------------
 
@@ -960,7 +1026,41 @@ type ReadOnly_TestE = t.Expect<
     t.ReadOnly<{ hello: "world" } & { foo: "bar" }>,
     { read hello: "world" } & { read foo: "bar" }
 >
--------------------------------------------------------
+--------------------------------------------------------
+
+-- DeepReadOnly ----------------------------------------
+-- Test A: Makes a table deeply read only.
+type DeepReadOnly_TestA = t.Expect<
+    t.DeepReadOnly<{ read hello: "world", foo: "bar" }>,
+    { read hello: "world", read foo: "bar" }
+>
+
+-- Test B: Makes a table (whose indexer is a table) deeply read only.
+-- (index should not be affected by ReadWrite).
+-- TODO: read only indexers aren't supported yet.
+--[[type ReadOnly_TestB = t.Expect<
+    t.DeepReadWrite<{ read [{ hello: "world" }]: "foo" }>,
+    //{ [{ hello: "world" }]: "foo" }
+>]]
+
+-- Test C: Makes a nested table deeply read only.
+type DeepReadOnly_TestC = t.Expect<
+    t.DeepReadOnly<{ read hello: { hello: "world" } }>,
+    { read hello: { read hello: "world" } }
+>
+
+-- Test D: Makes a union of nested tables deeply read only.
+type DeepReadOnly_TestD = t.Expect<
+    t.DeepReadOnly<{ hello: "world" | { lol: "bar" } } | { foo: "bar" }>,
+    { read hello: "world" | { read lol: "bar" } } | { read foo: "bar" }
+>
+
+-- Test E: Makes an intersection of nested tables deeply read only.
+type DeepReadOnly_TestE = t.Expect<
+    t.DeepReadOnly<{ hello: "world" | { lol: "bar" } } & { foo: "bar" }>,
+    { read hello: "world" | { read lol: "bar" } } & { read foo: "bar" }
+>
+--------------------------------------------------------
 
 -- ReadWrite -------------------------------------------
 -- Test A: Makes a table readable and writable.
@@ -994,6 +1094,40 @@ type ReadWrite_TestD = t.Expect<
 type ReadWrite_TestE = t.Expect<
     t.ReadWrite<{ read hello: "world" } & { read foo: "bar" }>,
     { hello: "world" } & { foo: "bar" }
+>
+-------------------------------------------------------
+
+-- DeepReadWrite -------------------------------------------
+-- Test A: Makes a table deeply readable and writable.
+type DeepReadWrite_TestA = t.Expect<
+    t.DeepReadWrite<{ read hello: "world", foo: "bar" }>,
+    { hello: "world", foo: "bar" }
+>
+
+-- Test B: Makes a table (whose indexer is a table) deeply readable and writable.
+-- (index should not be affected by ReadWrite).
+-- TODO: read only indexers aren't supported yet.
+--[[type DeepReadWrite_TestB = t.Expect<
+    t.DeepReadWrite<{ read [{ hello: "world" }]: "foo" }>,
+    //{ [{ hello: "world" }]: "foo" }
+>]]
+
+-- Test C: Makes a nested table deeply readable and writable,
+type DeepReadWrite_TestC = t.Expect<
+    t.DeepReadWrite<{ read hello: { read hello: "world" } }>,
+    { hello: { hello: "world" } }
+>
+
+-- Test D: Makes a union of nested tables deeply readable and writable.
+type DeepReadWrite_TestD = t.Expect<
+    t.DeepReadWrite<{ read hello: "world" | { read lol: "bar" } } | { read foo: "bar" }>,
+    { hello: "world" | { lol: "bar" } } | { foo: "bar" }
+>
+
+-- Test E: Makes an intersection of nested tables deeply readable and writable.
+type DeepReadWrite_TestE = t.Expect<
+    t.DeepReadWrite<{ read hello: "world" | { read lol: "bar" } } & { read foo: "bar" }>,
+    { hello: "world" | { lol: "bar" } } & { foo: "bar" }
 >
 -------------------------------------------------------
 -------------------------------------------------------------------------------------------------------

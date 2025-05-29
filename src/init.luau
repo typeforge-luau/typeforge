@@ -107,21 +107,6 @@ type function unions_and_intersections_flatten(
     end
 end
 
-type function non_optional(input: type, nil_singleton: typeof(types.singleton(nil)))
-    local input_tag = input.tag
-
-    if input_tag == "union" or input_tag == "intersection" then
-        for _, component in input:components() do
-            if component ~= nil_singleton then return component end
-        end
-    
-        return nil_singleton
-
-    else
-        return input
-    end
-end
-
 -- The equality operator `==` is really strict with unions and intersections,
 -- where the order of their components needs to be the same.
 type function sort_type(input: type)
@@ -639,13 +624,29 @@ type function components_clean_unions_and_intersections(
     return input
 end
 
-type function components_find_type(input: { [number]: type }, tag: string): (type?, number?)
-    for idx, component in input do
-        if component.tag ~= tag then continue end
-        return component, idx
+type function components_find(
+    input: { [number]: type },
+    as: "union" | "intersection",
+    callback: (component: type, component_tag: string) -> boolean
+): boolean
+    for _, component in input do
+        local component_tag = component.tag
+
+        if component_tag == as then
+            if components_find(component:components(), as, callback) then return true end
+
+        elseif callback(component, component_tag) then return true end
     end
 
-    return nil, nil
+    return false
+end
+
+type function components_find_type(
+    input: { [number]: type },
+    as: "union" | "intersection",
+    tag_to_find: string
+): boolean
+    return components_find(input, as, function(_, tag: string) return tag == tag_to_find end)
 end
 ----------------------------------------------------------------------------------------
 
@@ -1058,24 +1059,15 @@ type function table_map_values_deep(
         local value_read, value_write = value.read, value.write
 
         if value_read == value_write then
-            input:setproperty(key, callback(
-                if (value_read :: type).tag == "table" then table_map_values_deep(value_read, callback)
-                else value_read :: type
-            ))
+            input:setproperty(key, table_map_inner_components(callback(value_read :: type), table_map_values_deep, callback))
 
         else
             if value_read then
-                input:setreadproperty(key, callback(
-                    if value_read.tag == "table" then table_map_values_deep(value_read, callback)
-                    else value_read
-                ))
+                input:setreadproperty(key, table_map_inner_components(callback(value_read), table_map_values_deep, callback))
             end
 
             if value_write then
-                input:setwriteproperty(key, callback(
-                    if value_write.tag == "table" then table_map_values_deep(value_write, callback)
-                    else value_write
-                ))
+                input:setwriteproperty(key, table_map_inner_components(callback(value_write), table_map_values_deep, callback))
             end
         end
     end
@@ -1086,24 +1078,24 @@ type function table_map_values_deep(
         local indexer_read, indexer_write = indexer.readresult, indexer.writeresult
 
         if indexer_read == indexer_write then
-            table_set_indexer_or_remove(input, indexer_index, callback(
-                if (indexer_read :: type).tag == "table" then table_map_values_deep(indexer_read, callback)
-                else indexer_read :: type
-            ))
+            table_set_indexer_or_remove(
+                input, indexer_index,
+                table_map_inner_components(callback(indexer_read :: type), table_map_values_deep, callback)
+            )
 
         else
             if indexer_read then
-                table_set_read_indexer_or_remove(input, indexer_index, callback(
-                    if indexer_read.tag == "table" then table_map_values_deep(indexer_read, callback)
-                    else indexer_read
-                ))
+                table_set_read_indexer_or_remove(
+                    input, indexer_index,
+                    table_map_inner_components(callback(indexer_read), table_map_values_deep, callback)
+                )
             end
 
             if indexer_write then
-                table_set_read_indexer_or_remove(input, indexer_index, callback(
-                    if indexer_write.tag == "table" then table_map_values_deep(indexer_write, callback)
-                    else indexer_write
-                ))
+                table_set_read_indexer_or_remove(
+                    input, indexer_index,
+                    table_map_inner_components(callback(indexer_write), table_map_values_deep, callback)
+                )
             end
         end
     end
@@ -1154,6 +1146,24 @@ type function table_map_values_shallow(
 
     return input
 end
+
+type function table_map_inner_components(
+    input: type,
+    callback: (input: typeof(types.newtable()), ...any) -> typeof(types.newtable()),
+    ...: any
+)
+    local input_tag = input.tag
+    return
+        if input_tag == "union" then
+            union_from_components(components_map(input:components(), table_map_inner_components, callback, ...)) or types.never
+
+        elseif input_tag == "intersection" then
+            intersection_from_components(components_map(input:components(), table_map_inner_components, callback, ...)) or types.never
+
+        elseif input_tag == "table" then callback(input, ...)
+
+        else input
+end
 ----------------------------------------------------------------------------------------
 
 --> Core Types -------------------------------------------------------------------------
@@ -1181,13 +1191,13 @@ export type function Omit(input: type, to_omit: type)
             OmitTableByKeys(input, to_omit)
 
         elseif input_tag == "intersection" then
-            if components_find_type(input:components(), "table") then
+            if components_find_type(input:components(), "intersection", "table") then
                 OmitTableByKeys(input, to_omit)
             else
                 OmitIntersection(input, to_omit)
 
         else
-            if components_find_type(input:components(), "table") then
+            if components_find_type(input:components(), "union", "table") then
                 OmitTableByKeys(input, to_omit)
             else
                 OmitUnion(input, to_omit)
@@ -1217,13 +1227,13 @@ export type function Pick(input: type, to_pick: type)
             PickTableByKeys(input, to_pick)
 
         elseif input_tag == "intersection" then
-            if components_find_type(input:components(), "table") then
+            if components_find_type(input:components(), "intersection", "table") then
                 PickTableByKeys(input, to_pick)
             else
                 PickIntersection(input, to_pick)
 
         else
-            if components_find_type(input:components(), "table") then
+            if components_find_type(input:components(), "union", "table") then
                 PickTableByKeys(input, to_pick)
             else
                 PickUnion(input, to_pick)
@@ -1336,7 +1346,7 @@ export type function OmitUnion(input: type, to_omit: type)
             end) or types.never
     
         else
-            return union_filter(input, input_tag, function(component)
+            return union_filter(input, input_tag, function(component: type)
                 return component == to_omit
             end) or types.never
         end
@@ -1373,7 +1383,7 @@ export type function PickUnion(input: type, to_pick: type)
             end) or types.never
     
         else
-            return union_filter(input, input_tag, function(component)
+            return union_filter(input, input_tag, function(component: type)
                 return component ~= to_pick
             end) or types.never
         end
@@ -1467,7 +1477,7 @@ export type function OmitIntersection(input: type, to_omit: type)
             end) or types.never
     
         else
-            return intersection_filter(input, input_tag, function(component)
+            return intersection_filter(input, input_tag, function(component: type)
                 return component == to_omit
             end) or types.never
         end
@@ -1506,7 +1516,7 @@ export type function PickIntersection(input: type, to_pick: type)
             end) or types.never
     
         else
-            return intersection_filter(input, input_tag, function(component)
+            return intersection_filter(input, input_tag, function(component: type)
                 return component ~= to_pick
             end) or types.never
         end
@@ -1882,7 +1892,7 @@ end
 
 
 --[=[
-    Removes duplicate types from union and intersection keys and values in the specified table.
+    Removes duplicate types from union and intersection keys and values inside the specified table.
 
     @category Table
 
@@ -1949,6 +1959,38 @@ export type function CleanTable(input: typeof(types.newtable()))
     return input
 end
 
+type function partial_core(
+    input: typeof(types.newtable()),
+    map_callback: (input: typeof(types.newtable()), callback: (input: type) -> type?) -> typeof(types.newtable())
+)
+    local input_tag = input.tag
+    if input_tag == "union" then
+        return union_from_components(components_map(input:components(), partial_core, map_callback)) or types.never
+
+    elseif input_tag == "intersection" then
+        return intersection_from_components(components_map(input:components(), partial_core, map_callback)) or types.never
+    end
+
+    assert_is(input, "input", input_tag, "table")
+
+    local nil_singleton = types.singleton(nil)
+
+    return map_callback(input, function(value: type)
+        if input.tag == "union" then
+            local components = input:components()
+
+            if components_find(components, "union", function(component: type) return component == nil_singleton end) then
+                return value
+
+            else
+                table.insert(components, nil_singleton)
+                return union_from_components(components)
+            end
+
+        else return types.optional(value) end
+    end)
+end
+
 --[=[
     Makes every property in a table optional.
 
@@ -1962,18 +2004,43 @@ end
     -- type Result = { foo: "bar"?, hello: "world"? }
 ]=]
 export type function Partial(input: typeof(types.newtable()))
+    return partial_core(input, table_map_values_shallow)
+end
+
+--[=[
+    Makes every property (including nested ones) in a table optional.
+
+    @category Table
+
+    @param input { [any]: type } -- The table to make deeply partial.
+
+    @example
+    type Result = DeepPartial<{ hello: "world", foo: { bar: "baz" } }>
+
+    -- type Result = { foo: { bar: "baz"? }?, hello: "world"? }
+]=]
+export type function DeepPartial(input: typeof(types.newtable()))
+    return partial_core(input, table_map_values_deep)
+end
+
+type function required_core(
+    input: typeof(types.newtable()),
+    map_callback: (input: typeof(types.newtable()), callback: (input: type) -> type?) -> typeof(types.newtable())
+)
     local input_tag = input.tag
     if input_tag == "union" then
-        return union_from_components(components_map(input:components(), Partial)) or types.never
+        return union_from_components(components_map(input:components(), required_core, map_callback)) or types.never
 
     elseif input_tag == "intersection" then
-        return intersection_from_components(components_map(input:components(), Partial)) or types.never
+        return intersection_from_components(components_map(input:components(), required_core, map_callback)) or types.never
     end
 
     assert_is(input, "input", input_tag, "table")
 
-    return table_map_values_shallow(input, function(value)
-        return types.optional(value)
+    local nil_singleton = types.singleton(nil)
+
+    return map_callback(input, function(value)
+        return OmitUnion(value, nil_singleton)
     end)
 end
 
@@ -1990,21 +2057,23 @@ end
     -- type Result = { foo: "bar", hello: "world" }
 ]=]
 export type function Required(input: typeof(types.newtable()))
-    local input_tag = input.tag
-    if input_tag == "union" then
-        return union_from_components(components_map(input:components(), Required)) or types.never
+    return required_core(input, table_map_values_shallow)
+end
 
-    elseif input_tag == "intersection" then
-        return intersection_from_components(components_map(input:components(), Required)) or types.never
-    end
+--[=[
+    Makes every property (including nested ones) in a table required.
 
-    assert_is(input, "input", input_tag, "table")
+    @category Table
 
-    local nil_singleton = types.singleton("nil")
+    @param input { [any]: type } -- The table to make deeply required.
 
-    return table_map_values_shallow(input, function(value)
-        return non_optional(value, nil_singleton)
-    end)
+    @example
+    type Result = DeepRequired<{ hello: { lol: "kek"? }?, foo: "bar"? }>
+
+    -- type Result = { foo: { lol: "kek" }, hello: "world" }
+]=]
+export type function DeepRequired(input: typeof(types.newtable()))
+    return required_core(input, table_map_values_deep)
 end
 
 --[=[
@@ -2041,12 +2110,51 @@ export type function ReadOnly(input: typeof(types.newtable()))
     return input
 end
 
+type function deep_read_only_core(input: typeof(types.newtable()))
+    for key, value in input:properties() do
+        if value.write then
+            input:setwriteproperty(key, nil)
+        end
+        input:setreadproperty(key, table_map_inner_components(value.read, deep_read_only_core))
+    end
+
+    -- TODO: add support for read and write indexers when available.
+
+    return input
+end
+
 --[=[
-    Makes every property in a table read / write.
+    Makes every property (including nested ones) in a table read only.
 
     @category Table
 
-    @param input { [any]: type } -- The table to make read / write.
+    @param input { [any]: type } -- The table to make deeply read only.
+
+    @example
+    type Result = DeepReadOnly<{ hello: "world", foo: { bar: "baz" } }>
+
+    -- type Result = { read foo: { read bar: "baz" }, read hello: "world" }
+]=]
+export type function DeepReadOnly(input: typeof(types.newtable()))
+    local input_tag = input.tag
+    if input_tag == "union" then
+        return union_from_components(components_map(input:components(), DeepReadOnly)) or types.never
+
+    elseif input_tag == "intersection" then
+        return intersection_from_components(components_map(input:components(), DeepReadOnly)) or types.never
+    end
+
+    assert_is(input, "input", input_tag, "table")
+
+    return deep_read_only_core(input)
+end
+
+--[=[
+    Makes every property in a table readable and writable.
+
+    @category Table
+
+    @param input { [any]: type } -- The table to make readable and writable.
 
     @example
     type Result = ReadWrite<{ read hello: "world", foo: "bar" }>
@@ -2078,6 +2186,49 @@ export type function ReadWrite(input: typeof(types.newtable()))
     -- TODO: add support for read and write indexers when available.
 
     return input
+end
+
+type function deep_read_write_core(input: typeof(types.newtable()))
+    for key, value in input:properties() do
+        local value_read, value_write = value.read, value.write
+
+        if value_read and not value_write then
+            input:setproperty(key, table_map_inner_components(value_read, deep_read_write_core))
+
+        elseif value_write and not value_read then
+            input:setproperty(key, table_map_inner_components(value_write, deep_read_write_core))
+        end
+    end
+
+    -- TODO: add support for read and write indexers when available.
+
+    return input
+end
+
+--[=[
+    Makes every property (including nested ones) in a table readable and writable.
+
+    @category Table
+
+    @param input { [any]: type } -- The table to make deeply readable and writable.
+
+    @example
+    type Result = DeepReadWrite<{ read hello: "world", foo: { read bar: "baz" } }>
+
+    -- type Result = { foo: { bar: "baz" }, hello: "world" }
+]=]
+export type function DeepReadWrite(input: typeof(types.newtable()))
+    local input_tag = input.tag
+    if input_tag == "union" then
+        return union_from_components(components_map(input:components(), DeepReadWrite)) or types.never
+
+    elseif input_tag == "intersection" then
+        return intersection_from_components(components_map(input:components(), DeepReadWrite)) or types.never
+    end
+
+    assert_is(input, "input", input_tag, "table")
+
+    return deep_read_write_core(input)
 end
 ----------------------------------------------------------------------------------------
 
@@ -2286,7 +2437,7 @@ end
 
 --> Miscellaneous Types ----------------------------------------------------------------
 --[=[
-    returns the inputted type but with unions, intersections and negations turned into tables so they can be inspected / debugged better.
+    Returns the inputted type but with unions, intersections and negations turned into tables so they can be inspected / debugged better.
 
     @category Miscellaneous
 
@@ -2382,7 +2533,10 @@ end
 
 --[=[
     Negates a type.
-    TEMPORARY: This type function will be removed once luau gets negation syntax (see `negation-types` RFC).
+
+    ::: warning TEMPORARY
+    This type function will be removed once luau gets negation syntax (see the `negation-types` RFC).
+    :::
 
     @category Miscellaneous
 
@@ -2397,7 +2551,6 @@ export type function Negate(input: type)
     return types.negationof(input)
 end
 ----------------------------------------------------------------------------------------
-
 
 return nil
 
