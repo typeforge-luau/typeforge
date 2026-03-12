@@ -73,13 +73,11 @@ type function is_primitive(input_tag: string)
         input_tag == "string"
 end
 
-type function unions_and_intersections_flatten(
-    input: typeof(types.unionof()) | typeof(types.intersectionof())
-)
+type function unions_and_intersections_flatten(input: type)
     local input_tag = input.tag
 
     if input_tag == "union" or input_tag == "intersection" then
-        local components = input:components()
+        local components: { type } = input:components()
 
         for idx = #components, 1, -1 do
             local component = components[idx]
@@ -88,7 +86,7 @@ type function unions_and_intersections_flatten(
 
             local component = unions_and_intersections_flatten(component)
             if component.tag == input_tag then
-                local sub_components = component:components()
+                local sub_components: { type } = component:components()
 
                 components[idx] = sub_components[1]
                 for idx = 2, #sub_components do
@@ -220,7 +218,7 @@ type function stringify_table(
 
     -- Sorts the table keys so its stringified representation 
     -- to ensure stringification is deterministic.
-    local keys = {}
+    local keys: { type } = {}
     for key in properties do table.insert(keys, key) end
     table.sort(keys, function(a, b) return tostring(a) > tostring(b) end)
 
@@ -264,7 +262,7 @@ type function stringify_table(
 end
 
 type function stringify_components(
-    components: { [number]: type },
+    components: { type },
     concatenator: string
 )
     for idx, component in components do
@@ -402,7 +400,7 @@ end
 
 type function hashset_insert(
     hashset: typeof(types.newtable()),
-    non_hashsettable: { [number]: type },
+    non_hashsettable: { type },
     input: type,
     input_tag: string
 )   
@@ -416,7 +414,7 @@ end
 
 type function hashset_has_type(
     hashset: typeof(types.newtable()),
-    non_hashsettable: { [number]: type },
+    non_hashsettable: { type },
     input: type,
     input_tag: string
 )
@@ -432,7 +430,7 @@ type function hashset_has_type(
     end
 end
 
-type function hashset_from_components(input: { [number]: type })
+type function hashset_from_components(input: { type })
     local hashset = types.newtable()
 
     local input_len = #input
@@ -455,9 +453,9 @@ end
 
 --> Components Helpers -----------------------------------------------------------------
 type function components_filter(
-    input: { [number]: type },
+    input: { type },
     as: "union" | "intersection",
-    as_builder: (components: { [number]: type }) -> (typeof(types.unionof()) | typeof(types.intersectionof())),
+    as_builder: (components: { type }) -> (typeof(types.unionof()) | typeof(types.intersectionof())),
     callback: (component: type) -> boolean
 )
     local input_len = #input
@@ -485,9 +483,9 @@ type function components_filter(
 end
 
 type function components_flatten(
-    input: { [number]: type },
+    input: { type },
     as: "union" | "intersection",
-    as_builder: (components: { [number]: type }) -> (typeof(types.unionof()) | typeof(types.intersectionof()))
+    as_builder: (components: { type }) -> (typeof(types.unionof()) | typeof(types.intersectionof()))
 )
     for idx = #input, 1, -1 do
         local component = input[idx]
@@ -513,7 +511,7 @@ type function components_flatten(
 end
 
 type function components_map(
-    input: { [number]: type }, 
+    input: { type }, 
     callback: (value: type, ...any) -> any,
     ...: any
 )
@@ -524,11 +522,11 @@ type function components_map(
 end
 
 type function components_clean(
-    input: { [number]: type },
+    input: { type },
     as: "union" | "intersection",
-    as_builder: (components: { [number]: type }) -> (typeof(types.unionof()) | typeof(types.intersectionof())),
+    as_builder: (components: { type }) -> (typeof(types.unionof()) | typeof(types.intersectionof())),
     hashset: typeof(types.newtable()),
-    non_hashsettable: { [number]: type }
+    non_hashsettable: { type }
 )   
     local input_len = #input
     for idx = input_len, 1, -1 do
@@ -573,15 +571,15 @@ type function components_clean(
 end
 
 type function components_clean_unions_and_intersections(
-    input: { [number]: type },
+    input: { type },
     hashset: typeof(types.newtable()),
-    non_hashsettable: { [number]: type },
+    non_hashsettable: { type },
 
     input_tag: string,
     input_tag_other: string,
 
-    input_builder: (components: { [number]: type }) -> (typeof(types.unionof()) | typeof(types.intersectionof())),
-    input_builder_other: (components: { [number]: type }) -> (typeof(types.unionof()) | typeof(types.intersectionof()))
+    input_builder: (components: { type }) -> (typeof(types.unionof()) | typeof(types.intersectionof())),
+    input_builder_other: (components: { type }) -> (typeof(types.unionof()) | typeof(types.intersectionof()))
 )   
     local input_len = #input
     for idx = input_len, 1, -1 do
@@ -625,7 +623,7 @@ type function components_clean_unions_and_intersections(
 end
 
 type function components_find(
-    input: { [number]: type },
+    input: { type },
     as: "union" | "intersection",
     callback: (component: type, component_tag: string) -> boolean
 ): boolean
@@ -642,7 +640,7 @@ type function components_find(
 end
 
 type function components_find_type(
-    input: { [number]: type },
+    input: { type },
     as: "union" | "intersection",
     tag_to_find: string
 ): boolean
@@ -651,7 +649,7 @@ end
 ----------------------------------------------------------------------------------------
 
 --> Union Helpers ----------------------------------------------------------------------
-type function union_from_components(input: { [number]: type })
+type function union_from_components(input: { type })
     local input_len = #input
     return if input_len == 0 then nil elseif input_len == 1 then input[1] else types.unionof(table.unpack(input))
 end
@@ -666,7 +664,7 @@ end
 ----------------------------------------------------------------------------------------
 
 --> Intersection Helpers ---------------------------------------------------------------
-type function intersection_from_components(input: { [number]: type })
+type function intersection_from_components(input: { type })
     local input_len = #input
     return if input_len == 0 then nil elseif input_len == 1 then input[1] else types.intersectionof(table.unpack(input))
 end
@@ -1774,14 +1772,14 @@ export type function FlattenTable(input: type)
     local output: typeof(types.newtable()), output_idx: number
     local can_add_read_indexer, can_add_write_indexer
 
-    local output_union_components: { [number]: type } = {}
-    local output_non_table_intersection_components: { [number]: type } = {}
+    local output_union_components: { type } = {}
+    local output_non_table_intersection_components: { type } = {}
    
     for idx, component in components do
         local component_tag = component.tag
 
         if component_tag == "union" then
-            for _, sub_component in Flatten(component):components() do
+            for _, sub_component: type in Flatten(component):components() do
                 table.insert(
                     output_union_components,
                     sub_component
@@ -1840,7 +1838,7 @@ export type function FlattenTable(input: type)
         local component_tag = component.tag
 
         if component_tag == "union" then
-            for _, sub_component in Flatten(component):components() do
+            for _, sub_component: type in Flatten(component):components() do
                 table.insert(
                     output_union_components,
                     sub_component

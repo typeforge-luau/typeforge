@@ -268,7 +268,9 @@ type CleanUnion_TestA = t.Expect<
 -- Test B: Cleans a nested union.
 type CleanUnion_TestB = t.Expect<
     t.CleanUnion<"hello" | "hello" | ("lol" | ("kek" | "kek" | "food"))>,
-    "hello" | ("lol" | ("kek" | "food"))
+
+    -- types.unionof and types.intersectionof no longer support nesting.
+    "hello" | "lol" | "kek" | "food"
 >
 
 -- Test C: Cleans an intersection of unions.
@@ -280,13 +282,17 @@ type CleanUnion_TestC = t.Expect<
 -- Test D: Cleans a negated union.
 type CleanUnion_TestD = t.Expect<
     t.CleanUnion<t.Negate<(string | "foo") | (string | "bar")>>,
-    t.Negate<"foo" | (string | "bar")>
+
+    -- types.unionof and types.intersectionof no longer support nesting.
+    t.Negate<"foo" | string | "bar">
 >
 
 -- Test E: Cleans a union between a type and a negated type.
 type CleanUnion_TestE = t.Expect<
     t.CleanUnion<string | "foo" | t.Negate<string | ("bar" | "baz")>>,
-    "foo" | t.Negate<string | ("bar" | "baz")>
+
+    -- types.unionof and types.intersectionof no longer support nesting.
+    "foo" | t.Negate<string | "bar" | "baz">
 >
 -------------------------------------------------------
 -------------------------------------------------------------------------------------------------------
@@ -411,7 +417,9 @@ type CleanIntersection_TestA = t.Expect<
 -- Test B: Cleans a nested intersection.
 type CleanIntersection_TestB = t.Expect<
     t.CleanIntersection<"hello" & "hello" & ("lol" & ("kek" & "kek" & "food"))>,
-    "hello" & ("lol" & ("kek" & "food"))
+
+    -- types.unionof and types.intersectionof no longer support nesting.
+    "hello" & "lol" & "kek" & "food"
 >
 
 -- Test C: Cleans a union of intersections.
@@ -423,7 +431,9 @@ type CleanIntersection_TestC = t.Expect<
 -- Test D: Cleans a negated intersection.
 type CleanIntersection_TestD = t.Expect<
     t.CleanIntersection<t.Negate<(string & "foo") & (string & "bar")>>,
-    t.Negate<"foo" & (string & "bar")>
+
+    -- types.unionof and types.intersectionof no longer support nesting.
+    t.Negate<"foo" & string & "bar">
 >
 
 -- Test E: Cleans an intersection between a type and a negated type.
@@ -709,7 +719,9 @@ type FlattenTable_TestK = t.Expect<
 -- TestL: Flattening a union of an intersection of tables with nested tables.
 type FlattenTable_TestL = t.Expect<
     t.FlattenTable<(({ hello: "world" } & { foo: "bar" }) | ({ baz: "bix" } | ({ lol: "kek" } | { right: "wrong" })))>,
-    (({ hello: "world", foo: "bar" }) | ({ baz: "bix" } | ({ lol: "kek" } | { right: "wrong" })))
+
+    -- types.unionof and types.intersectionof no longer support nesting.
+    { hello: "world", foo: "bar" } | { baz: "bix" } | { lol: "kek" } | { right: "wrong" }
 >
 
 -- TestM: Flattening a intersection of an intersection of tables with one table.
@@ -1269,3 +1281,8 @@ type Returns_TestD = t.Expect<
 >
 --------------------------------------------------------
 -------------------------------------------------------------------------------------------------------
+
+
+type Foo = ("hello"  | "goodbye") | "foo"
+
+type Test = t.Inspect<Foo>
