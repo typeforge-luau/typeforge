@@ -52,5 +52,14 @@ jobs:
       - name: Run Tests
         run: |
           echo '{ "aliases": { "self": "src" } }' > .luaurc
-          luau-lsp analyze --platform=standard --no-flags-enabled --flag LuauSolverV2=true src/init.test.luau
+
+          # Sync FFlags from Roblox (same as VS Code luau-lsp extension with fflags.sync: true)
+          FLAGS="--no-flags-enabled"
+          while IFS='=' read -r key value; do
+            FLAGS="$FLAGS --flag $key=$value"
+          done < <(curl -s "https://clientsettingscdn.roblox.com/v1/settings/application?applicationName=PCStudioApp" \
+            | jq -r '.applicationSettings | to_entries[] | select(.key | test("^(FFlag|FInt|DFFlag|DFInt)Luau")) | "\(.key | sub("^(FFlag|FInt|DFFlag|DFInt)"; ""))=\(.value)"')
+
+          FLAGS="$FLAGS --flag LuauSolverV2=true"
+          luau-lsp analyze --platform=standard $FLAGS src/init.test.luau
         
