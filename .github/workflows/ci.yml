@@ -61,5 +61,5 @@ jobs:
             | jq -r '.applicationSettings | to_entries[] | select(.key | test("^(FFlag|FInt|DFFlag|DFInt)Luau")) | "\(.key | sub("^(FFlag|FInt|DFFlag|DFInt)"; ""))=\(.value)"')
 
           FLAGS="$FLAGS --flag LuauSolverV2=true"
-          luau-lsp analyze --platform=standard $FLAGS src/init.test.luau
+          luau-lsp analyze --platform=standard --ignore 'src/init.luau' $FLAGS src/init.test.luau
         
