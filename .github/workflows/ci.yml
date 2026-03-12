@@ -16,60 +16,41 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get Luau Version
+      - name: Get Luau LSP Version
         id: get_latest
         run: |
-          LATEST_TAG=$(curl -s https://api.github.com/repositories/148821256/releases/latest | jq -r '.tag_name')
+          LATEST_TAG=$(curl -s https://api.github.com/repos/JohnnyMorganz/luau-lsp/releases/latest | jq -r '.tag_name')
           echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
 
-      - name: Luau Cache Restore
-        id: cache-luau
+      - name: Luau LSP Cache Restore
+        id: cache-luau-lsp
         uses: actions/cache/restore@v5
         with:
-          path: luau-binaries
-          key: luau-${{ env.LATEST_TAG }}
-          restore-keys: luau-
+          path: luau-lsp-bin
+          key: luau-lsp-${{ env.LATEST_TAG }}
 
-      - name: Debug cache hit
-        run: echo "Cache hit? ${{ steps.cache-luau.outputs.cache-hit }}"
+      - name: Setup Luau LSP (If Cached)
+        if: steps.cache-luau-lsp.outputs.cache-hit == 'true'
+        run: sudo cp luau-lsp-bin/luau-lsp /usr/local/bin/luau-lsp
 
-      - name: Setup Luau (If Cached)
-        if: steps.cache-luau.outputs.cache-hit == 'true'
+      - name: Setup Luau LSP (If Not Cached)
+        if: steps.cache-luau-lsp.outputs.cache-hit != 'true'
         run: |
-          echo "Luau cache hit, copying binaries"
-          ls luau-binaries
-          sudo cp luau-binaries/luau /usr/local/bin/luau
-          sudo cp luau-binaries/luau-analyze /usr/local/bin/luau-analyze
-          sudo cp luau-binaries/luau-ast /usr/local/bin/luau-ast
-          sudo cp luau-binaries/luau-compile /usr/local/bin/luau-compile
+          mkdir -p luau-lsp-bin
+          curl -L -o luau-lsp-bin/luau-lsp.zip https://github.com/JohnnyMorganz/luau-lsp/releases/download/${{ env.LATEST_TAG }}/luau-lsp-linux-x86_64.zip
+          unzip luau-lsp-bin/luau-lsp.zip -d luau-lsp-bin/
+          chmod +x luau-lsp-bin/luau-lsp
+          sudo cp luau-lsp-bin/luau-lsp /usr/local/bin/luau-lsp
 
-      - name: Setup Luau (If Not Cached)
-        if: steps.cache-luau.outputs.cache-hit != 'true'
-        run: |
-          echo "Downloading Luau version ${{ env.LATEST_TAG }}"
-          mkdir -p luau-binaries
-          curl -L -o luau-binaries/luau-ubuntu.zip https://github.com/luau-lang/luau/releases/download/${{ env.LATEST_TAG }}/luau-ubuntu.zip
-          unzip luau-binaries/luau-ubuntu.zip -d luau-binaries/
-          chmod +x luau-binaries/luau luau-binaries/luau-analyze luau-binaries/luau-ast luau-binaries/luau-compile
-          sudo cp luau-binaries/luau /usr/local/bin/luau
-          sudo cp luau-binaries/luau-analyze /usr/local/bin/luau-analyze
-          sudo cp luau-binaries/luau-ast /usr/local/bin/luau-ast
-          sudo cp luau-binaries/luau-compile /usr/local/bin/luau-compile
-
-      - name: Luau Cache Save
+      - name: Luau LSP Cache Save
         if: always()
         uses: actions/cache/save@v5
         with:
-          path: luau-binaries
-          key: luau-${{ env.LATEST_TAG }}
+          path: luau-lsp-bin
+          key: luau-lsp-${{ env.LATEST_TAG }}
 
       - name: Run Tests
         run: |
           perl -pi -e 's/require\("\@self"\)/require\("\.\/"\)/g' src/init.test.luau
-          output=$(luau-analyze src/init.test.luau --fflags=LuauSolverV2,true,LuauTarjanChildLimit,15000,LuauTableTypeMaximumStringifierLength,0,LuauQueryLocalFunctionBinding,true,LuauToStringDecomposition,true)
-          if [ -n "$output" ]; then
-            echo "$output"
-            echo "luau-analyze found issues!"
-            exit 1
-          fi
+          luau-lsp analyze --flag LuauSolverV2=true src/init.test.luau
         
