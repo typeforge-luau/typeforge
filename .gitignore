@@ -5,7 +5,7 @@
 /*.rbxlx.lock
 /*.rbxl.lock
 
-# MacOS file system junk.
+# MacOS file system clutter.
 ._*
 .DS_STORE
 
@@ -25,3 +25,19 @@ docs/site/node_modules
 docs/generation/target
 docs/site/.vitepress/cache
 docs/site/docs
+
+# IDEs
+.idea/       # JetBrains (CLion, IntelliJ, etc.)
+.vscode/
+.trae/
+.zed/
+*.swp        # Vim swap files
+*.swo        # Vim swap overflow files
+
+# AI agents
+.claude/
+.cursor/
+.aider/
+.copilot/
+.codex/
+.gemini/
