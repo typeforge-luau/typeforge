@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -22,14 +22,13 @@ jobs:
           LATEST_TAG=$(curl -s https://api.github.com/repositories/148821256/releases/latest | jq -r '.tag_name')
           echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
 
-      - name: Luau Cache
+      - name: Luau Cache Restore
         id: cache-luau
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v5
         with:
           path: luau-binaries
           key: luau-${{ env.LATEST_TAG }}
           restore-keys: luau-
-          save-always: true
 
       - name: Debug cache hit
         run: echo "Cache hit? ${{ steps.cache-luau.outputs.cache-hit }}"
@@ -56,6 +55,13 @@ jobs:
           sudo cp luau-binaries/luau-analyze /usr/local/bin/luau-analyze
           sudo cp luau-binaries/luau-ast /usr/local/bin/luau-ast
           sudo cp luau-binaries/luau-compile /usr/local/bin/luau-compile
+
+      - name: Luau Cache Save
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: luau-binaries
+          key: luau-${{ env.LATEST_TAG }}
 
       - name: Run Tests
         run: |

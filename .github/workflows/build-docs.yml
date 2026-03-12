@@ -27,19 +27,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Cache Rust
-        uses: actions/cache@v4
+      - name: Rust Cache Restore
+        uses: actions/cache/restore@v5
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          save-always: true
 
       - name: Setup Rust
         run: rustup override set 1.85.0
@@ -47,15 +46,24 @@ jobs:
       - name: Generate Docs
         run: cd docs/generation && cargo run src/main
 
-      - name: Cache Bun
-        uses: actions/cache@v4
+      - name: Rust Cache Save
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Bun Cache Restore
+        uses: actions/cache/restore@v5
         with:
           path: |
             ~/.bun
             ~/bun.lockb
           key: ${{ runner.os }}-bun-${{ hashFiles('bun.lockb') }}
           restore-keys: ${{ runner.os }}-bun-
-          save-always: true
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
@@ -63,7 +71,7 @@ jobs:
           bun-version: 1.1.21
 
       - name: Setup Pages
-        uses: actions/configure-pages@v4
+        uses: actions/configure-pages@v5
 
       - name: Install dependencies
         run: cd docs/site && bun install
@@ -71,8 +79,17 @@ jobs:
       - name: Build with VitePress
         run: cd docs/site && bun run docs:build
 
+      - name: Bun Cache Save
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            ~/.bun
+            ~/bun.lockb
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lockb') }}
+
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: docs/site/.vitepress/dist
 
