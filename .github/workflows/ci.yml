@@ -52,5 +52,5 @@ jobs:
       - name: Run Tests
         run: |
           echo '{ "aliases": { "self": "src" } }' > .luaurc
-          luau-lsp analyze --platform=standard --flag LuauSolverV2=true src/init.test.luau
+          luau-lsp analyze --platform=standard --flag LuauSolverV2=true --flag LuauTarjanChildLimit=0 src/init.test.luau
         
