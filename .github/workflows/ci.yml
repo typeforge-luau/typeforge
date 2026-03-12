@@ -51,6 +51,6 @@ jobs:
 
       - name: Run Tests
         run: |
-          perl -pi -e 's/require\("\@self"\)/require\("\.\/"\)/g' src/init.test.luau
+          echo '{ "aliases": { "self": "src" } }' > .luaurc
           luau-lsp analyze --platform=standard --flag LuauSolverV2=true src/init.test.luau
         
