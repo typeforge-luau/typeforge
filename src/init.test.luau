@@ -147,6 +147,26 @@ type Clean_TestF = t.Expect<
     { hello: "foo" | "bar" } & { foo: "kek" | "bar" | "lol" }
 >
 -------------------------------------------------------
+
+-- ValueOf ----------------------------------------------
+-- Test A: Gets values of a table with one field.
+type ValueOf_TestA = t.Expect<t.ValueOf<{ foo: string }>, string>
+
+-- Test B: Gets values of a table with multiple fields.
+type ValueOf_TestB = t.Expect<t.ValueOf<{ foo: string, bar: number }>, string | number>
+
+-- Test C: Gets values of a table with multiple fields with identical values.
+type ValueOf_TestC = t.Expect<t.ValueOf<{ foo: string, bar: string }>, string>
+
+-- Test D: Gets values of a table only an indexer.
+type ValueOf_TestD = t.Expect<t.ValueOf<{ [string]: boolean }>, boolean>
+
+-- Test E: Gets values of a table with fields and an indexer.
+type ValueOf_TestE = t.Expect<t.ValueOf<{ foo: string, bar: number, [string]: string }>, string | number>
+
+-- Test F: Gets values of an empty table.
+type ValueOf_Test_ = t.Expect<t.ValueOf<{  }>, never>
+-------------------------------------------------------
 -------------------------------------------------------------------------------------------------------
 
 --> Union ---------------------------------------------------------------------------------------------

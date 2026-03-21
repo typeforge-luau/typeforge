@@ -512,8 +512,8 @@ end
 
 type function components_map(
     input: { type }, 
-    callback: (value: type, ...any) -> any,
-    ...: any
+    callback: (value: type, ...type) -> type,
+    ...: type
 )
     for idx, value in input do
         input[idx] = callback(value, ...)
@@ -712,7 +712,7 @@ type function table_set_property(
     end
 end
 
-type function table_value_is_empty(properties: { [any]: any }, indexer: type)
+type function table_value_is_empty(properties: { [type]: type }, indexer: type)
     if indexer then return false end
 
     for _ in properties do return false end
@@ -1145,8 +1145,8 @@ end
 
 type function table_map_inner_components(
     input: type,
-    callback: (input: typeof(types.newtable()), ...any) -> typeof(types.newtable()),
-    ...: any
+    callback: (input: typeof(types.newtable()), ...type) -> typeof(types.newtable()),
+    ...: type
 )
     local input_tag = input.tag
     return
@@ -1168,8 +1168,8 @@ end
 
     @category Core
 
-    @param input any -- The type to omit from.
-    @param to_omit any -- The components / properties to omit.
+    @param input type -- The type to omit from.
+    @param to_omit type -- The components / properties to omit.
 
     @example
     type Result = Omit<
@@ -1204,8 +1204,8 @@ end
 
     @category Core
 
-    @param input any -- The type to pick from.
-    @param to_pick any -- The components / properties to pick.
+    @param input type -- The type to pick from.
+    @param to_pick type -- The components / properties to pick.
 
     @example
     type Result = Pick<
@@ -1241,7 +1241,7 @@ end
 
     @category Core
 
-    @param input any -- The type to flatten.
+    @param input type -- The type to flatten.
 
     @example
     type Result = Flatten<({ hello: "world" } & ({ foo: "bar" } | { lol: "kek" }))>
@@ -1267,7 +1267,7 @@ end
 
     @category Core
 
-    @param input any -- The type to clean.
+    @param input type -- The type to clean.
 
     @example
     type Result = Clean<{
@@ -1309,6 +1309,72 @@ export type function Clean(input: type)
         ))
     end)
 end
+
+--[=[
+    Returns all of the values in a table type.
+
+    @category Core
+
+    @param input type -- The table type to get values from.
+
+    @example
+    type Result = ValueOf<
+        {
+            ["1"]: FooType,
+            ["2"]: BarType,
+            [number]: BazType,
+        },
+    >
+
+    -- type Result = FooType | BarType | BazType
+]=]
+export type function ValueOf(input: type)
+    assert_is(input, "input", input.tag, "table")
+
+    local values = {}
+
+    for _, value in input:properties() do
+        local value_read, value_write = value.read, value.write
+
+        if value_read == value_write then
+            if value_read then
+                table.insert(values, value_read)
+            end
+
+        else
+            if value_read then
+                table.insert(values, value_read)
+            end
+
+            if value_write then
+                table.insert(values, value_write)
+            end
+        end
+    end
+
+    local indexer = input:indexer()
+    if indexer then
+        local readresult, writeresult = indexer.readresult, indexer.writeresult
+
+        if readresult == writeresult then
+            if readresult then
+                table.insert(values, readresult)
+            end
+
+        else
+            if readresult then
+                table.insert(values, readresult)
+            end
+
+            if writeresult then
+                table.insert(values, writeresult)
+            end
+        end
+    end
+
+    local union = union_from_components(values)
+    return if union then CleanUnion(union) else types.never
+end
 ----------------------------------------------------------------------------------------
 
 --> Union Types ------------------------------------------------------------------------
@@ -1317,8 +1383,8 @@ end
 
     @category Union
 
-    @param input any -- The union to omit from.
-    @param to_omit any -- The components to omit.
+    @param input type -- The union to omit from.
+    @param to_omit type -- The components to omit.
 
     @example
     type Result = OmitUnion<
@@ -1354,8 +1420,8 @@ end
 
     @category Union
 
-    @param input any -- The union to pick from.
-    @param to_pick any -- The components to pick.
+    @param input type -- The union to pick from.
+    @param to_pick type -- The components to pick.
 
     @example
     type Result = PickUnion<
@@ -1391,7 +1457,7 @@ end
 
     @category Union
 
-    @param input any -- The union to flatten.
+    @param input type -- The union to flatten.
 
     @example
     type Result = FlattenUnion<"foo" | ("hello" | ("world" | "lol"))>
@@ -1417,7 +1483,7 @@ end
 
     @category Union
 
-    @param input any -- The union to clean.
+    @param input type -- The union to clean.
 
     @example
     type Result = CleanUnion<"hello" | string | "world" | string | "foo" | "hello">
@@ -1448,8 +1514,8 @@ end
 
     @category Intersection
 
-    @param input any -- The intersection to omit from.
-    @param to_omit any -- The components to omit.
+    @param input type -- The intersection to omit from.
+    @param to_omit type -- The components to omit.
 
     @example
     type Result = OmitIntersection<
@@ -1485,8 +1551,8 @@ end
 
     @category Intersection
 
-    @param input any -- The intersection to pick from.
-    @param to_pick any -- The components to pick.
+    @param input type -- The intersection to pick from.
+    @param to_pick type -- The components to pick.
 
     @example
     type Result = PickIntersection<
@@ -1524,7 +1590,7 @@ end
 
     @category Intersection
 
-    @param input any -- The intersection to flatten.
+    @param input type -- The intersection to flatten.
 
     @example
     type Result = FlattenIntersection<"foo" & ("hello" & ("world" & "lol"))>
@@ -1554,7 +1620,7 @@ end
 
     @category Intersection
 
-    @param input any -- The intersection to clean.
+    @param input type -- The intersection to clean.
 
     @example
     type Result = CleanIntersection<"hello" & string & "world" & string & "foo" & "hello">
@@ -1587,8 +1653,8 @@ end
 
     @category Table
 
-    @param input { [any]: type } -- The table to omit from.
-    @param to_omit any -- The values of the properties to omit.
+    @param input { [type]: type } -- The table to omit from.
+    @param to_omit type -- The values of the properties to omit.
 
     @example
     type Result = OmitTableByKeys<{ hello: string, foo: "bar", bar: number }, "hello" | "foo">
@@ -1626,8 +1692,8 @@ end
 
     @category Table
 
-    @param input { [any]: type } -- The table to omit from.
-    @param to_omit any -- The values of the properties to omit.
+    @param input { [type]: type } -- The table to omit from.
+    @param to_omit type -- The values of the properties to omit.
 
     @example
     type Result = OmitTableByValues<{ hello: string, foo: "bar", bar: number }, "bar" | string>
@@ -1665,8 +1731,8 @@ end
 
     @category Table
 
-    @param input { [any]: type } -- The table to pick from.
-    @param to_pick any -- The keys of the properties to pick.
+    @param input { [type]: type } -- The table to pick from.
+    @param to_pick type -- The keys of the properties to pick.
 
     @example
     type Result = PickTableByKeys<{ hello: string, foo: "bar", bar: number }, "hello" | "foo">
@@ -1704,8 +1770,8 @@ end
 
     @category Table
 
-    @param input { [any]: type } -- The table to pick from.
-    @param to_pick any -- The values of the properties to pick.
+    @param input { [type]: type } -- The table to pick from.
+    @param to_pick type -- The values of the properties to pick.
 
     @example
     type Result = PickTableByValues<{ hello: string, foo: "bar", bar: number }, "bar" | string>
@@ -1743,7 +1809,7 @@ end
 
     @category Table
 
-    @param input { [any]: type } -- The table to flatten.
+    @param input { [type]: type } -- The table to flatten.
 
     @example
     type Result = FlattenTable<
@@ -1892,7 +1958,7 @@ end
 
     @category Table
 
-    @param input { [any]: type } -- The table to clean.
+    @param input { [type]: type } -- The table to clean.
 
     @example
     type Result = TableClean<{ name: string | string, salary: number }>
@@ -1992,7 +2058,7 @@ end
 
     @category Table
 
-    @param input { [any]: type } -- The table to make partial.
+    @param input { [type]: type } -- The table to make partial.
 
     @example
     type Result = Partial<{ hello: "world", foo: "bar" }>
@@ -2008,7 +2074,7 @@ end
 
     @category Table
 
-    @param input { [any]: type } -- The table to make deeply partial.
+    @param input { [type]: type } -- The table to make deeply partial.
 
     @example
     type Result = DeepPartial<{ hello: "world", foo: { bar: "baz" } }>
@@ -2045,7 +2111,7 @@ end
 
     @category Table
 
-    @param input { [any]: type } -- The table to make required.
+    @param input { [type]: type } -- The table to make required.
 
     @example
     type Result = Required<{ hello: "world"?, foo: "bar"? }>
@@ -2061,7 +2127,7 @@ end
 
     @category Table
 
-    @param input { [any]: type } -- The table to make deeply required.
+    @param input { [type]: type } -- The table to make deeply required.
 
     @example
     type Result = DeepRequired<{ hello: { lol: "kek"? }?, foo: "bar"? }>
@@ -2077,7 +2143,7 @@ end
 
     @category Table
 
-    @param input { [any]: type } -- The table to make read only.
+    @param input { [type]: type } -- The table to make read only.
 
     @example
     type Result = ReadOnly<{ hello: "world", foo: "bar" }>
@@ -2124,7 +2190,7 @@ end
 
     @category Table
 
-    @param input { [any]: type } -- The table to make deeply read only.
+    @param input { [type]: type } -- The table to make deeply read only.
 
     @example
     type Result = DeepReadOnly<{ hello: "world", foo: { bar: "baz" } }>
@@ -2150,7 +2216,7 @@ end
 
     @category Table
 
-    @param input { [any]: type } -- The table to make readable and writable.
+    @param input { [type]: type } -- The table to make readable and writable.
 
     @example
     type Result = ReadWrite<{ read hello: "world", foo: "bar" }>
@@ -2206,7 +2272,7 @@ end
 
     @category Table
 
-    @param input { [any]: type } -- The table to make deeply readable and writable.
+    @param input { [type]: type } -- The table to make deeply readable and writable.
 
     @example
     type Result = DeepReadWrite<{ read hello: "world", foo: { read bar: "baz" } }>
@@ -2234,12 +2300,12 @@ end
 
     @category Function
 
-    @param input (...any) -> (...any) -- The function to flatten.
+    @param input (...type) -> (...type) -- The function to flatten.
 
     @example
-    type Result = FlattenFunction<(string | (number | boolean)) -> (any & (boolean & number))>
+    type Result = FlattenFunction<(string | (number | boolean)) -> (type & (boolean & number))>
 
-    -- type Result = (boolean | number | string) -> any & boolean & number
+    -- type Result = (boolean | number | string) -> type & boolean & number
 ]=]
 export type function FlattenFunction(input: typeof(types.newfunction()))
     local input_tag = input.tag
@@ -2290,12 +2356,12 @@ end
 
     @category Function
 
-    @param input (...any) -> (...any) -- The function to clean.
+    @param input (...type) -> (...type) -- The function to clean.
 
     @example
-    type Result = CleanFunction<(number, string | string | boolean) -> any | any>
+    type Result = CleanFunction<(number, string | string | boolean) -> type | type>
 
-    -- type Result = (number, boolean | string) -> any
+    -- type Result = (number, boolean | string) -> type
 ]=]
 export type function CleanFunction(input: typeof(types.newfunction()))
     local input_tag = input.tag
@@ -2346,17 +2412,17 @@ end
 
     @category Function
 
-    @param input (...any) -> (...any) -- The function to get params for.
+    @param input (...type) -> (...type) -- The function to get params for.
 
     @example
-    type Result = Params<(number, string, boolean, ...{ any }) -> any>
+    type Result = Params<(number, string, boolean, ...{ type }) -> type>
 
     --[[
         type Result = {
             1: number,
             2: string,
             3: boolean,
-            tail: {any}
+            tail: {type}
         }
     ]]
 ]=]
@@ -2394,7 +2460,7 @@ end
 
     @category Function
 
-    @param input (...any) -> (...any) -- The function to get return types for.
+    @param input (...type) -> (...type) -- The function to get return types for.
 
     @example
     type Result = Returns<() -> (string, number)>
@@ -2437,7 +2503,7 @@ end
 
     @category Miscellaneous
 
-    @param input any -- The type to be inspected.
+    @param input type -- The type to be inspected.
 
     @example
     type Result = Inspect<"hello" | ("world" & string)>
@@ -2489,19 +2555,19 @@ end
 
     @category Miscellaneous
 
-    @param expect any -- The type to be compared.
-    @param toBe any -- The type you want to compare `expect` to.
+    @param expect type -- The type to be compared.
+    @param toBe type -- The type you want to compare `expect` to.
 
     @example
     type test = Expect<
         { foo: "bar" } & { hello: "world" },
-        (string, boolean) -> ...any
+        (string, boolean) -> ...type
     >
 
     --[[
         TypeError: 'Expect' type function errored at runtime: [string "Expect"]:2295: 
         Expected the function type below:
-        > (string, boolean) -> (...any)
+        > (string, boolean) -> (...type)
 
         But Got this intersection type instead:
         > {
@@ -2536,7 +2602,7 @@ end
 
     @category Miscellaneous
 
-    @param input any -- The type to stringify.
+    @param input type -- The type to stringify.
 
     @example
     type Result = Negate<string>
@@ -2555,7 +2621,7 @@ return nil
 
     Copyright (c) 2025 Cameron P Campbell
 
-    Permission is hereby granted, free of chparame, to any person obtaining a copy
+    Permission is hereby granted, free of chparame, to ANY person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
     in the Software without restriction, including without limitation the rights
     to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
