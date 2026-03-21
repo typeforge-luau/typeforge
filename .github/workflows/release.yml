@@ -58,6 +58,9 @@ jobs:
             exit 1
           fi
 
+          # Increase heading levels by 1 (# -> ##, ## -> ###)
+          CHANGELOG=$(printf '%s' "$CHANGELOG" | sed 's/^#/##/')
+
           # Strip leading 'v' for wally version URL
           VERSION="${TAG#v}"
           WALLY_URL="https://wally.run/package/cameronpcampbell/typeforge?version=${VERSION}"
