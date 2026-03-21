@@ -42,3 +42,36 @@ jobs:
             printf '%s\n' "$CHANGELOG" > /tmp/release_body.md
             gh release create "$TAG" --verify-tag --title "$TAG" --notes-file /tmp/release_body.md
           fi
+
+      - name: Rokit Cache Restore
+        id: cache-rokit
+        uses: actions/cache/restore@v5
+        with:
+          path: ~/.rokit
+          key: rokit-${{ hashFiles('rokit.toml') }}
+
+      - name: Install Rokit
+        if: steps.cache-rokit.outputs.cache-hit != 'true'
+        run: curl -fsSL https://raw.githubusercontent.com/rojo-rbx/rokit/main/scripts/install.sh | bash
+
+      - name: Install Tools
+        run: |
+          export PATH="$HOME/.rokit/bin:$PATH"
+          rokit install
+
+      - name: Rokit Cache Save
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: ~/.rokit
+          key: rokit-${{ hashFiles('rokit.toml') }}
+
+      - name: Publish to Wally
+        run: |
+          export PATH="$HOME/.rokit/bin:$PATH"
+          mkdir -p ~/.wally
+          cat > ~/.wally/auth.toml << 'EOF'
+          [tokens]
+          "https://api.wally.run/" = "${{ secrets.WALLY_TOKEN }}"
+          EOF
+          wally publish
