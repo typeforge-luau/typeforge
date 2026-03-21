@@ -3,7 +3,7 @@
 A Type Function utility library for Luau.
 
 > [!TIP]
-> Check out [Typebrick](https://github.com/typeforge-luau/typebrick), type function utilities for Roblox.
+> Check out [Typebrick](https://github.com/typeforge-luau/typebrick), a type function utility library for Roblox types.
 
 docs: http://typeforge.luau.page/
 
