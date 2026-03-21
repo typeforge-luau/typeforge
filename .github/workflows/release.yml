@@ -5,8 +5,32 @@ on:
     tags: ["v*"]
 
 jobs:
+  preflight:
+    name: Preflight Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check wally.toml version matches tag
+        run: |
+          TAG="${{ github.ref_name }}"
+          WALLY_VERSION="v$(grep -m1 '^version' wally.toml | sed 's/.*"\(.*\)".*/\1/')"
+          if [ "$WALLY_VERSION" != "$TAG" ]; then
+            echo "::error::wally.toml version ($WALLY_VERSION) does not match tag ($TAG). Update the version in wally.toml before releasing."
+            exit 1
+          fi
+
+      - name: Check CHANGELOG.md has entry for this version
+        run: |
+          TAG="${{ github.ref_name }}"
+          if ! grep -q "^# $TAG" CHANGELOG.md; then
+            echo "::error::No changelog entry found for $TAG in CHANGELOG.md. Add a '# $TAG' section before releasing."
+            exit 1
+          fi
+
   create-release:
     name: Create Release
+    needs: preflight
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -34,13 +58,28 @@ jobs:
             exit 1
           fi
 
+          # Strip leading 'v' for wally version URL
+          VERSION="${TAG#v}"
+          WALLY_URL="https://wally.run/package/cameronpcampbell/typeforge?version=${VERSION}"
+
+          cat > /tmp/release_body.md << EOF
+          # Changelog
+          ${CHANGELOG}
+
+          ---
+
+          # Wally
+          Install via [Wally](${WALLY_URL}):
+          \`\`\`toml
+          typeforge = "cameronpcampbell/typeforge@${VERSION}"
+          \`\`\`
+          EOF
+
           if gh release view "$TAG" > /dev/null 2>&1; then
-            echo "Release $TAG already exists. Updating with changelog."
-            printf '%s\n' "$CHANGELOG" > /tmp/release_body.md
-            gh release edit "$TAG" --title "$TAG" --notes-file /tmp/release_body.md
+            echo "Release $TAG already exists. Updating."
+            gh release edit "$TAG" --draft --title "Typeforge $TAG" --notes-file /tmp/release_body.md
           else
-            printf '%s\n' "$CHANGELOG" > /tmp/release_body.md
-            gh release create "$TAG" --verify-tag --title "$TAG" --notes-file /tmp/release_body.md
+            gh release create "$TAG" --draft --verify-tag --title "Typeforge $TAG" --notes-file /tmp/release_body.md
           fi
 
       - name: Rokit Cache Restore
@@ -57,7 +96,8 @@ jobs:
       - name: Install Tools
         run: |
           export PATH="$HOME/.rokit/bin:$PATH"
-          rokit install --trust-all
+          rokit trust UpliftGames/wally
+          rokit install
 
       - name: Rokit Cache Save
         if: always()
@@ -75,3 +115,8 @@ jobs:
           "https://api.wally.run/" = "${{ secrets.WALLY_TOKEN }}"
           EOF
           wally publish
+
+      - name: Publish Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "${{ github.ref_name }}" --draft=false
