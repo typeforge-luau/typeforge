@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Create Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.ref_name }}"
+
+          # Extract changelog section for this version
+          CHANGELOG=$(awk -v tag="$TAG" '
+            BEGIN { found=0 }
+            /^# / {
+              if (found) exit
+              if ($0 == "# " tag) { found=1; next }
+            }
+            found { print }
+          ' CHANGELOG.md | sed '/./,$!d' | sed -e :a -e '/^\n*$/{$d;N;ba}')
+
+          if [ -z "$CHANGELOG" ]; then
+            echo "::error::No changelog entry found for $TAG in CHANGELOG.md"
+            exit 1
+          fi
+
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "Release $TAG already exists. Updating with changelog."
+            printf '%s\n' "$CHANGELOG" > /tmp/release_body.md
+            gh release edit "$TAG" --title "$TAG" --notes-file /tmp/release_body.md
+          else
+            printf '%s\n' "$CHANGELOG" > /tmp/release_body.md
+            gh release create "$TAG" --verify-tag --title "$TAG" --notes-file /tmp/release_body.md
+          fi
