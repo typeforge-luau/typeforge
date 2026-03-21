@@ -36,7 +36,7 @@ type function assert_is(input: type, label: string, input_tag: string, ...: stri
     if select("#", ...) == 1 then
         local is = ...
         if input_type ~= is then
-            assert_is_msg(input, input_type, label, `'{is}'`)
+            error(assert_is_msg(input, input_type, label, `'{is}'`))
         end
 
     else
@@ -693,6 +693,25 @@ type function table_value_swap_remove(input: { [any]: any }, input_len: number, 
     return input_len - 1
 end
 
+-- Sets the value of a table in a way which works around the
+-- erroneously seperated read and write fields in type hints issue.
+type function table_set_property(
+    input: type,
+    key: type,
+    value: { read: type?, write: type? }?
+)
+    if value == nil then return end
+
+    local value_read, value_write = value.read, value.write
+    if value_read == value_write then
+        input:setproperty(key, value_read)
+
+    else
+        input:setreadproperty(key, value_read)
+        input:setwriteproperty(key, value_write)
+    end
+end
+
 type function table_value_is_empty(properties: { [any]: any }, indexer: type)
     if indexer then return false end
 
@@ -796,14 +815,7 @@ type function table_remove_indexer_hacky_fix(input: typeof(types.newtable()))
     local output = types.newtable()
 
     for key, value in input:properties() do
-        local value_read, value_write = value.read, value.write
-        if value_read == value_write then
-            output:setproperty(key, value_read)
-
-        else
-            output:setreadproperty(key, value_read)
-            output:setwriteproperty(key, value_write)
-        end
+        table_set_property(output, key, value)
     end
 
     return output
@@ -817,14 +829,7 @@ type function table_remove_read_indexer_hacky_fix(input: typeof(types.newtable()
     local output = types.newtable()
 
     for key, value in input:properties() do
-        local value_read, value_write = value.read, value.write
-        if value_read == value_write then
-            output:setproperty(key, value_read)
-
-        else
-            output:setreadproperty(key, value_read)
-            output:setwriteproperty(key, value_write)
-        end
+        table_set_property(output, key, value)
     end
 
     local indexer = input:indexer()
@@ -846,14 +851,7 @@ type function table_remove_write_indexer_hacky_fix(input: typeof(types.newtable(
     local output = types.newtable()
 
     for key, value in input:properties() do
-        local value_read, value_write = value.read, value.write
-        if value_read == value_write then
-            output:setproperty(key, value_read)
-
-        else
-            output:setreadproperty(key, value_read)
-            output:setwriteproperty(key, value_write)
-        end
+        table_set_property(output, key, value)
     end
 
     local indexer = input:indexer()
