@@ -57,7 +57,7 @@ jobs:
       - name: Install Tools
         run: |
           export PATH="$HOME/.rokit/bin:$PATH"
-          rokit install
+          rokit install --trust-all
 
       - name: Rokit Cache Save
         if: always()
