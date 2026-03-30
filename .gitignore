@@ -5,6 +5,8 @@
 /*.rbxlx.lock
 /*.rbxl.lock
 
+/wally.lock
+
 # MacOS file system clutter.
 ._*
 .DS_STORE
