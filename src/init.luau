@@ -370,10 +370,9 @@ end
 type function hashset_insert(
     hashset: typeof(types.newtable()),
     non_hashsettable: { type },
-    input: type,
-    input_tag: string
+    input: type
 )
-    if hashset_can_insert(input_tag) then
+    if hashset_can_insert(input.tag) then
         hashset:setproperty(input, types.never)
 
     else
@@ -384,10 +383,9 @@ end
 type function hashset_has_type(
     hashset: typeof(types.newtable()),
     non_hashsettable: { type },
-    input: type,
-    input_tag: string
+    input: type
 )
-    if hashset_can_insert(input_tag) then
+    if hashset_can_insert(input.tag) then
         return if hashset:readproperty(input) then true else false
 
     else
@@ -529,10 +527,10 @@ type function components_clean(
             end
         end
 
-        if hashset_has_type(hashset, non_hashsettable, component, component_tag) then
+        if hashset_has_type(hashset, non_hashsettable, component) then
             input_len = table_value_swap_remove(input, input_len, idx)
         else
-            hashset_insert(hashset, non_hashsettable, component, component_tag)
+            hashset_insert(hashset, non_hashsettable, component)
         end
     end
 
@@ -580,10 +578,10 @@ type function components_clean_unions_and_intersections(
             end
 
         else
-            if hashset_has_type(hashset, non_hashsettable, component, component_tag) then
+            if hashset_has_type(hashset, non_hashsettable, component) then
                 input_len = table_value_swap_remove(input, input_len, idx)
             else
-                hashset_insert(hashset, non_hashsettable, component, component_tag)
+                hashset_insert(hashset, non_hashsettable, component)
             end
         end
     end
@@ -623,8 +621,8 @@ type function union_from_components(input: { type })
     return if input_len == 0 then nil elseif input_len == 1 then input[1] else types.unionof(table.unpack(input))
 end
 
-type function union_filter(input: type, input_tag: string, callback: (component: type) -> boolean)
-    if input_tag == "union" then
+type function union_filter(input: type, callback: (component: type) -> boolean)
+    if input.tag == "union" then
         return union_from_components(components_filter(input:components(), "union", union_from_components, callback))
     else
         return if callback(input) then nil else input
@@ -638,8 +636,8 @@ type function intersection_from_components(input: { type })
     return if input_len == 0 then nil elseif input_len == 1 then input[1] else types.intersectionof(table.unpack(input))
 end
 
-type function intersection_filter(input: type, input_tag: string, callback: (component: type) -> boolean)
-    if input_tag == "intersection" then
+type function intersection_filter(input: type, callback: (component: type) -> boolean)
+    if input.tag == "intersection" then
         return intersection_from_components(components_filter(input:components(), "intersection", intersection_from_components, callback))
     else
         return if callback(input) then nil else input
@@ -1352,12 +1350,12 @@ export type function OmitUnion(input: type, to_omit: type)
         if to_omit.tag == "union" then
             local hashset, non_hashsettable = hashset_from_components(FlattenUnion(to_omit):components())
 
-            return union_filter(input, input_tag, function(component): boolean
-                return hashset_has_type(hashset, non_hashsettable, component, component.tag)
+            return union_filter(input, function(component): boolean
+                return hashset_has_type(hashset, non_hashsettable, component)
             end) or types.never
 
         else
-            return union_filter(input, input_tag, function(component: type)
+            return union_filter(input, function(component: type)
                 return component == to_omit
             end) or types.never
         end
@@ -1389,12 +1387,12 @@ export type function PickUnion(input: type, to_pick: type)
         if to_pick.tag == "union" then
             local hashset, non_hashsettable = hashset_from_components(FlattenUnion(to_pick):components())
 
-            return union_filter(input, input_tag, function(component): boolean
-                return not hashset_has_type(hashset, non_hashsettable, component, component.tag)
+            return union_filter(input, function(component): boolean
+                return not hashset_has_type(hashset, non_hashsettable, component)
             end) or types.never
 
         else
-            return union_filter(input, input_tag, function(component: type)
+            return union_filter(input, function(component: type)
                 return component ~= to_pick
             end) or types.never
         end
@@ -1483,12 +1481,12 @@ export type function OmitIntersection(input: type, to_omit: type)
         if to_omit.tag == "union" then
             local hashset, non_hashsettable = hashset_from_components(FlattenUnion(to_omit):components())
 
-            return intersection_filter(input, input_tag, function(component): boolean
-                return hashset_has_type(hashset, non_hashsettable, component, component.tag)
+            return intersection_filter(input, function(component): boolean
+                return hashset_has_type(hashset, non_hashsettable, component)
             end) or types.never
 
         else
-            return intersection_filter(input, input_tag, function(component: type)
+            return intersection_filter(input, function(component: type)
                 return component == to_omit
             end) or types.never
         end
@@ -1522,12 +1520,12 @@ export type function PickIntersection(input: type, to_pick: type)
         if to_pick.tag == "union" then
             local hashset, non_hashsettable = hashset_from_components(FlattenUnion(to_pick):components())
 
-            return intersection_filter(input, input_tag, function(component): boolean
-                return not hashset_has_type(hashset, non_hashsettable, component, component.tag)
+            return intersection_filter(input, function(component): boolean
+                return not hashset_has_type(hashset, non_hashsettable, component)
             end) or types.never
 
         else
-            return intersection_filter(input, input_tag, function(component: type)
+            return intersection_filter(input, function(component: type)
                 return component ~= to_pick
             end) or types.never
         end
@@ -1626,7 +1624,7 @@ export type function OmitTableByKeys(input: typeof(types.newtable()), to_omit: t
         local hashset, non_hashsettable = hashset_from_components(FlattenUnion(to_omit):components())
 
         return table_filter_by_keys(input, function(component: type)
-            return if hashset_has_type(hashset, non_hashsettable, component, component.tag) then true else false
+            return if hashset_has_type(hashset, non_hashsettable, component) then true else false
         end)
 
     else
@@ -1665,7 +1663,7 @@ export type function OmitTableByValues(input: typeof(types.newtable()), to_omit:
         local hashset, non_hashsettable = hashset_from_components(FlattenUnion(to_omit):components())
 
         return table_filter_by_values(input, function(component: type)
-            return if hashset_has_type(hashset, non_hashsettable, component, component.tag) then true else false
+            return if hashset_has_type(hashset, non_hashsettable, component) then true else false
         end)
 
     else
@@ -1704,7 +1702,7 @@ export type function PickTableByKeys(input: typeof(types.newtable()), to_pick: t
         local hashset, non_hashsettable = hashset_from_components(FlattenUnion(to_pick):components())
 
         return table_filter_by_keys(input, function(component: type)
-            return if not hashset_has_type(hashset, non_hashsettable, component, component.tag) then true else false
+            return if not hashset_has_type(hashset, non_hashsettable, component) then true else false
         end)
 
     else
@@ -1743,7 +1741,7 @@ export type function PickTableByValues(input: typeof(types.newtable()), to_pick:
         local hashset, non_hashsettable = hashset_from_components(FlattenUnion(to_pick):components())
 
         return table_filter_by_values(input, function(component: type)
-            return if not hashset_has_type(hashset, non_hashsettable, component, component.tag) then true else false
+            return if not hashset_has_type(hashset, non_hashsettable, component) then true else false
         end)
 
     else
@@ -2559,7 +2557,9 @@ end
     -- type Result = ~string
 ]=]
 export type function Negate(input: type)
-    return types.negationof(input)
+    return
+        if input.tag == "negation" then input
+        else types.negationof(input)
 end
 ----------------------------------------------------------------------------------------
 

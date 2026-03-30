@@ -1301,3 +1301,69 @@ type Returns_TestD = t.Expect<
 >
 --------------------------------------------------------
 -------------------------------------------------------------------------------------------------------
+
+--> Miscellaneous -------------------------------------------------------------------------------------
+-- Inspect ----------------------------------------
+-- Test A: Inspects a union.
+type Inspect_TestA = t.Expect<
+    t.Inspect<"hello" | "world">,
+    { ["1"]: "hello", ["2"]: "world", kind: "union" }
+>
+
+-- Test B: Inspects an intersection.
+type Inspect_TestB = t.Expect<
+    t.Inspect<"hello" & "world">,
+    { ["1"]: "hello", ["2"]: "world", kind: "intersection" }
+>
+
+-- Test C: Inspects a negation.
+type Inspect_TestC = t.Expect<
+    t.Inspect<t.Negate<string>>,
+    { ["1"]: string, kind: "negation" }
+>
+
+-- Test D: Inspects a nested union inside an intersection.
+type Inspect_TestD = t.Expect<
+    t.Inspect<"hello" & ("world" | "foo")>,
+    { ["1"]: "hello", ["2"]: { ["1"]: "world", ["2"]: "foo", kind: "union" }, kind: "intersection" }
+>
+
+-- Test E: Inspects a primitive (passes through).
+type Inspect_TestE = t.Expect<
+    t.Inspect<string>,
+    string
+>
+
+-- Test F: Inspects a table (passes through).
+type Inspect_TestF = t.Expect<
+    t.Inspect<{ hello: "world" }>,
+    { hello: "world" }
+>
+
+-- Test G: Inspects a function (passes through).
+type Inspect_TestG = t.Expect<
+    t.Inspect<(string) -> number>,
+    (string) -> number
+>
+--------------------------------------------------------
+
+-- Negate -----------------------------------------
+-- Test A: Negates a primitive type.
+type Negate_TestA = t.Expect<
+    t.Negate<string>,
+    t.Negate<string>
+>
+
+-- Test B: Negates a singleton type.
+type Negate_TestB = t.Expect<
+    t.Negate<"hello">,
+    t.Negate<"hello">
+>
+
+-- Test C: Double negation is prevented (returns single negation).
+type Negate_TestC = t.Expect<
+    t.Negate<t.Negate<string>>,
+    t.Negate<string>
+>
+--------------------------------------------------------
+-------------------------------------------------------------------------------------------------------
