@@ -1,6 +1,6 @@
 # v3.0.4
 ## Features
-- Added support the new `integer` primitive.
+- Added support for the new `integer` primitive.
 
 # v3.0.3
 ## Features
