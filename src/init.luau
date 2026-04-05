@@ -34,12 +34,15 @@ end
 
 type function is_primitive(input_tag: string)
     return
+        input_tag == "any" or
         input_tag == "unknown" or
         input_tag == "never" or
-        input_tag == "any" or
         input_tag == "boolean" or
+        input_tag == "buffer" or
         input_tag == "number" or
-        input_tag == "string"
+        input_tag == "integer" or
+        input_tag == "string" or
+        input_tag == "thread"
 end
 
 type function unions_and_intersections_flatten(input: type)
@@ -346,6 +349,7 @@ type function stringify_main(
     elseif input_tag == "any" then return "any"
     elseif input_tag == "boolean" then return "boolean"
     elseif input_tag == "number" then return "number"
+    elseif input_tag == "integer" then return "integer"
     elseif input_tag == "string" then return "string" end
 
     local input = if input_tag == "singleton" then input:value() else input

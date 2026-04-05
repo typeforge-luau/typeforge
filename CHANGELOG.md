@@ -1,3 +1,7 @@
+# v3.0.4
+## Features
+- Added support the new `integer` primitive.
+
 # v3.0.3
 ## Features
 - `Negate` now prevents nested negations — if the input is already negated, it returns as-is.
