@@ -100,6 +100,7 @@ jobs:
         run: |
           export PATH="$HOME/.rokit/bin:$PATH"
           rokit trust UpliftGames/wally
+          rokit trust JohnnyMorganz/luau-lsp
           rokit install
 
       - name: Rokit Cache Save
