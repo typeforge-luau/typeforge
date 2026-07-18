@@ -1,3 +1,7 @@
+# 3.0.5
+## Fixes
+- Fixed issues with Picking and Omiting from singleton/primitive input's.
+
 # v3.0.4
 ## Features
 - Added support for the new `integer` primitive.

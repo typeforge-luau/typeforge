@@ -38,6 +38,30 @@ type Omit_TestE = t.Expect<
     t.Omit<{ hello: "world", foo: "bar" } & { lol: "kek", one: "two" }, "one" | "hello">,
     { foo: "bar" } & { lol: "kek" }
 >
+
+-- Test F: Omits a matching singleton from a singleton input.
+type Omit_TestF = t.Expect<
+    t.Omit<"foo", "foo">,
+    never
+>
+
+-- Test G: Preserves a singleton input when the singleton does not match.
+type Omit_TestG = t.Expect<
+    t.Omit<"foo", "bar">,
+    "foo"
+>
+
+-- Test H: Omits a matching union member from a singleton input.
+type Omit_TestH = t.Expect<
+    t.Omit<"foo", "foo" | "bar">,
+    never
+>
+
+-- Test I: Preserves a singleton input when no union member matches.
+type Omit_TestI = t.Expect<
+    t.Omit<"foo", "bar" | "baz">,
+    "foo"
+>
 -------------------------------------------------------
 
 -- Pick -----------------------------------------------
@@ -69,6 +93,30 @@ type Pick_TestD = t.Expect<
 type Pick_TestE = t.Expect<
     t.Pick<{ hello: "world", foo: "bar" } & { lol: "kek", one: "two" }, "one" | "hello">,
     { hello: "world" } & { one: "two" }
+>
+
+-- Test F: Picks a matching singleton from a singleton input.
+type Pick_TestF = t.Expect<
+    t.Pick<"foo", "foo">,
+    "foo"
+>
+
+-- Test G: Rejects a singleton input when the singleton does not match.
+type Pick_TestG = t.Expect<
+    t.Pick<"foo", "bar">,
+    never
+>
+
+-- Test H: Picks a matching union member from a singleton input.
+type Pick_TestH = t.Expect<
+    t.Pick<"foo", "foo" | "bar">,
+    "foo"
+>
+
+-- Test I: Rejects a singleton input when no union member matches.
+type Pick_TestI = t.Expect<
+    t.Pick<"foo", "bar" | "baz">,
+    never
 >
 -------------------------------------------------------
 
@@ -206,6 +254,30 @@ type OmitUnion_TestF = t.Expect<
     t.OmitUnion<t.Negate<string | number | "foo" | "bar">, string>,
     t.Negate<number | "foo" | "bar">
 >
+
+-- Test G: Omits a matching singleton from a singleton input.
+type OmitUnion_TestG = t.Expect<
+    t.OmitUnion<"foo", "foo">,
+    never
+>
+
+-- Test H: Preserves a singleton input when the singleton does not match.
+type OmitUnion_TestH = t.Expect<
+    t.OmitUnion<"foo", "bar">,
+    "foo"
+>
+
+-- Test I: Omits a matching union member from a singleton input.
+type OmitUnion_TestI = t.Expect<
+    t.OmitUnion<"foo", "foo" | "bar">,
+    never
+>
+
+-- Test J: Preserves a singleton input when no union member matches.
+type OmitUnion_TestJ = t.Expect<
+    t.OmitUnion<"foo", "bar" | "baz">,
+    "foo"
+>
 -------------------------------------------------------
 
 -- PickUnion ------------------------------------------
@@ -243,6 +315,30 @@ type PickUnion_TestE = t.Expect<
 type PickUnion_TestF = t.Expect<
     t.PickUnion<t.Negate<string | number | "foo" | "bar">, string | "bar">,
     t.Negate<string | "bar">
+>
+
+-- Test G: Picks a matching singleton from a singleton input.
+type PickUnion_TestG = t.Expect<
+    t.PickUnion<"foo", "foo">,
+    "foo"
+>
+
+-- Test H: Rejects a singleton input when the singleton does not match.
+type PickUnion_TestH = t.Expect<
+    t.PickUnion<"foo", "bar">,
+    never
+>
+
+-- Test I: Picks a matching union member from a singleton input.
+type PickUnion_TestI = t.Expect<
+    t.PickUnion<"foo", "foo" | "bar">,
+    "foo"
+>
+
+-- Test J: Rejects a singleton input when no union member matches.
+type PickUnion_TestJ = t.Expect<
+    t.PickUnion<"foo", "bar" | "baz">,
+    never
 >
 -------------------------------------------------------
 
@@ -355,6 +451,30 @@ type OmitIntersection_TestF = t.Expect<
     t.OmitIntersection<t.Negate<string & number & "foo" & "bar">, string>,
     t.Negate<number & "foo" & "bar">
 >
+
+-- Test G: Omits a matching singleton from a singleton input.
+type OmitIntersection_TestG = t.Expect<
+    t.OmitIntersection<"foo", "foo">,
+    never
+>
+
+-- Test H: Preserves a singleton input when the singleton does not match.
+type OmitIntersection_TestH = t.Expect<
+    t.OmitIntersection<"foo", "bar">,
+    "foo"
+>
+
+-- Test I: Omits a matching union member from a singleton input.
+type OmitIntersection_TestI = t.Expect<
+    t.OmitIntersection<"foo", "foo" | "bar">,
+    never
+>
+
+-- Test J: Preserves a singleton input when no union member matches.
+type OmitIntersection_TestJ = t.Expect<
+    t.OmitIntersection<"foo", "bar" | "baz">,
+    "foo"
+>
 -------------------------------------------------------
 
 -- PickIntersection -----------------------------------
@@ -392,6 +512,30 @@ type PickIntersection_TestE = t.Expect<
 type PickIntersection_TestF = t.Expect<
     t.PickIntersection<t.Negate<string & number & "foo" & "bar">, string | "bar">,
     t.Negate<string & "bar">
+>
+
+-- Test G: Picks a matching singleton from a singleton input.
+type PickIntersection_TestG = t.Expect<
+    t.PickIntersection<"foo", "foo">,
+    "foo"
+>
+
+-- Test H: Rejects a singleton input when the singleton does not match.
+type PickIntersection_TestH = t.Expect<
+    t.PickIntersection<"foo", "bar">,
+    never
+>
+
+-- Test I: Picks a matching union member from a singleton input.
+type PickIntersection_TestI = t.Expect<
+    t.PickIntersection<"foo", "foo" | "bar">,
+    "foo"
+>
+
+-- Test J: Rejects a singleton input when no union member matches.
+type PickIntersection_TestJ = t.Expect<
+    t.PickIntersection<"foo", "bar" | "baz">,
+    never
 >
 -------------------------------------------------------
 

@@ -165,6 +165,20 @@ type function sort_type(input: type)
         return input
     end
 end
+
+type function find_type(
+    input: type,
+    tag_to_find: string
+): boolean
+    local input_tag = input.tag
+
+    return
+        if input_tag == "union" or input_tag == "intersection" then
+            components_find(input:components(), input_tag, function(_, tag: string) return tag == tag_to_find end)
+
+        else
+            input_tag == tag_to_find
+end
 ----------------------------------------------------------------------------------------
 
 --> Stringify Helpers ------------------------------------------------------------------
@@ -1164,7 +1178,7 @@ export type function Omit(input: type, to_omit: type)
                 OmitIntersection(input, to_omit)
 
         else
-            if components_find_type(input:components(), "union", "table") then
+            if find_type(input, "table") then
                 OmitTableByKeys(input, to_omit)
             else
                 OmitUnion(input, to_omit)
@@ -1200,7 +1214,7 @@ export type function Pick(input: type, to_pick: type)
                 PickIntersection(input, to_pick)
 
         else
-            if components_find_type(input:components(), "union", "table") then
+            if find_type(input, "table") then
                 PickTableByKeys(input, to_pick)
             else
                 PickUnion(input, to_pick)
@@ -1518,8 +1532,6 @@ export type function PickIntersection(input: type, to_pick: type)
         if input_tag == "union" then
             return union_from_components(components_map(input:components(), PickIntersection, to_pick))
         end
-
-        assert_tag(input, "intersection")
 
         if to_pick.tag == "union" then
             local hashset, non_hashsettable = hashset_from_components(FlattenUnion(to_pick):components())
@@ -2553,7 +2565,7 @@ end
 
     @category Miscellaneous
 
-    @param input type -- The type to stringify.
+    @param input type -- The type to negate.
 
     @example
     type Result = Negate<string>
